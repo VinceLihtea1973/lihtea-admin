@@ -37,24 +37,187 @@ function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=
 function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
 
 // === Prospects ===
-function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
+function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const[sims,sSims]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[detail,sDetail]=useState(null);
+  const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
+  useEffect(()=>{fj(ADM+"/simulations").then(r=>sSims(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
   const lookup=async()=>{if(!f.siret||f.siret.replace(/\s/g,"").length!==14)return;sSL(true);const r=await fj(CON+"/siret?siret="+f.siret.replace(/\s/g,""));if(r?.data){const d=r.data;sF(p=>({...p,raison_sociale:d.raison_sociale||p.raison_sociale,siren:d.siren,code_naf:d.code_naf,libelle_naf:d.libelle_naf,taille:d.taille_calculee,effectifs:d.effectifs,adresse:d.adresse,code_postal:d.code_postal,ville:d.ville,region:d.region}))}sSL(false)};
-  const fd2=data.filter(d=>!q||[d.raison_sociale,d.contact_nom,d.siret,d.ville].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
-  return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Prospects</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length} contacts</p></div><div style={{display:"flex",gap:8}}><input value={q} onChange={e=>sQ(e.target.value)} placeholder="Rechercher..." style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit",width:180}}/><Btn onClick={()=>{sF({tenant_id:TID,raison_sociale:"",siret:"",contact_nom:"",contact_email:"",taille:"pme",source:"direct",statut:"nouveau",score_lead:30,montant_potentiel:0,notes:""});sM("new")}} color={C.teal}>+ Nouveau</Btn></div></div>
-  <DT loading={loading} data={fd2} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Supprimer "+r.raison_sociale+"?"))remove(r.id).then(()=>fl("✓"))}} columns={[{key:"raison_sociale",label:"Entreprise",render:(v,r)=><div><span style={{fontWeight:700}}>{v}</span>{r.ville&&<span style={{fontSize:11,color:C.text3,marginLeft:6}}>{r.ville}</span>}</div>},{key:"contact_nom",label:"Contact"},{key:"taille",label:"Taille",render:v=>v?<Badge color={{tpe:C.text3,pme:C.teal,eti:C.purple,ge:C.navy}[v]}>{v}</Badge>:""},{key:"statut",label:"Statut",render:v=><Badge color={SC[v]}>{v?.replace("_"," ")}</Badge>},{key:"montant_potentiel",label:"Potentiel",render:v=>v?<span style={{fontWeight:700,color:C.green}}>{fmt(v)}€</span>:""},{key:"score_lead",label:"Score",render:v=><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:40,height:5,borderRadius:3,background:C.border}}><div style={{width:(v||0)+"%",height:5,borderRadius:3,background:(v||0)>=60?C.green:(v||0)>=30?C.orange:C.red}}/></div><span style={{fontSize:10,color:C.text3}}>{v||0}</span></div>},{key:"updated_at",label:"MAJ",render:v=><span style={{fontSize:11,color:C.text3}}>{fa(v)}</span>}]}/>
-  <Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau prospect":"Modifier "+f.raison_sociale} wide>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><div style={{gridColumn:"1/3"}}><div style={{display:"flex",gap:8,alignItems:"flex-end"}}><div style={{flex:1}}><Input label="SIRET" value={f.siret||""} onChange={v=>F("siret",v)} placeholder="14 chiffres"/></div><Btn onClick={lookup} color={C.blue} small disabled={sl} style={{marginBottom:10}}>{sl?"...":"🔍 Lookup"}</Btn></div></div><Input label="Taille" value={f.taille||"pme"} onChange={v=>F("taille",v)} options={[{value:"tpe",label:"TPE"},{value:"pme",label:"PME"},{value:"eti",label:"ETI"},{value:"ge",label:"GE"}]}/><Input label="Raison sociale*" value={f.raison_sociale||""} onChange={v=>F("raison_sociale",v)}/><Input label="Code NAF" value={f.code_naf||""} onChange={v=>F("code_naf",v)}/><Input label="Ville" value={f.ville||""} onChange={v=>F("ville",v)}/></div>
+  // Enrich prospects with simulation counts
+  const enriched=data.map(p=>{const pSims=sims.filter(s=>s.prospect_id===p.id);return{...p,nb_sims:pSims.length,nb_offres:pSims.filter(s=>s.statut!=="brouillon").length,total_invest:pSims.reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0)}});
+  const fd2=enriched.filter(d=>{if(uf&&d.user_id!==uf)return false;if(!q)return true;return[d.raison_sociale,d.contact_nom,d.siret,d.ville].some(v=>v?.toLowerCase().includes(q.toLowerCase()))});
+  // Stats
+  const stN=fd2.filter(d=>d.statut==="nouveau").length;const stP=fd2.filter(d=>d.statut==="proposition").length;const stG=fd2.filter(d=>d.statut==="gagne").length;const totInv=fd2.reduce((a,d)=>a+d.total_invest,0);
+  // Get sims for detail view
+  const detailSims=detail?sims.filter(s=>s.prospect_id===detail.id):[];
+  return<div><Toast msg={t}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Prospects & Offres</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{fd2.length} contacts — {sims.filter(s=>s.statut!=="brouillon").length} offres émises</p></div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <select value={uf} onChange={e=>sUF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
+        <input value={q} onChange={e=>sQ(e.target.value)} placeholder="Rechercher..." style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit",width:160}}/>
+        <Btn onClick={()=>{sF({tenant_id:TID,raison_sociale:"",siret:"",contact_nom:"",contact_email:"",taille:"pme",source:"direct",statut:"nouveau",score_lead:30,montant_potentiel:0,notes:""});sM("new")}} color={C.teal}>+ Nouveau</Btn>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+      <Stat icon="👥" value={fd2.length} label="Prospects" color={C.navy}/>
+      <Stat icon="🆕" value={stN} label="Nouveaux" color={C.blue}/>
+      <Stat icon="📄" value={stP} label="En proposition" color={C.purple}/>
+      <Stat icon="🏆" value={stG} label="Gagnés" color={C.green}/>
+      <Stat icon="💰" value={totInv?Math.round(totInv/1000)+"k€":"0€"} label="Volume offres" color={C.gold}/>
+    </div>
+  <DT loading={loading} data={fd2} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Supprimer "+r.raison_sociale+"?"))remove(r.id).then(()=>fl("✓"))}} columns={[
+    {key:"raison_sociale",label:"Entreprise",render:(v,r)=><div><span style={{fontWeight:700}}>{v}</span>{r.ville&&<span style={{fontSize:11,color:C.text3,marginLeft:6}}>{r.ville}</span>}</div>},
+    {key:"contact_nom",label:"Contact"},
+    {key:"taille",label:"Taille",render:v=>v?<Badge color={{tpe:C.text3,pme:C.teal,eti:C.purple,ge:C.navy}[v]}>{v}</Badge>:""},
+    {key:"statut",label:"Statut",render:v=><Badge color={SC[v]}>{v?.replace("_"," ")}</Badge>},
+    {key:"nb_sims",label:"Sims",render:(v,r)=><span style={{fontWeight:700,color:C.navy}}>{v||0}</span>},
+    {key:"nb_offres",label:"Offres",render:(v,r)=>v?<span style={{fontWeight:700,color:C.purple}}>{v}</span>:<span style={{color:C.text3}}>0</span>},
+    {key:"total_invest",label:"Volume",render:v=>v?<span style={{fontWeight:700,color:C.green}}>{fmt(Math.round(v))}€</span>:"—"},
+    {key:"source",label:"Source",render:v=>v?<Badge color={v==="simulateur"?C.teal:C.text3}>{v.replace("_"," ")}</Badge>:"—"},
+    {key:"score_lead",label:"Score",render:v=><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:40,height:5,borderRadius:3,background:C.border}}><div style={{width:(v||0)+"%",height:5,borderRadius:3,background:(v||0)>=60?C.green:(v||0)>=30?C.orange:C.red}}/></div><span style={{fontSize:10,color:C.text3}}>{v||0}</span></div>},
+    {key:"updated_at",label:"MAJ",render:v=><span style={{fontSize:11,color:C.text3}}>{fa(v)}</span>}
+  ]}/>
+  {/* Detail: prospect simulations */}
+  <Modal open={!!detail} onClose={()=>sDetail(null)} title={"Offres — "+(detail?.raison_sociale||"")} wide>
+    {detailSims.length===0?<div style={{padding:20,textAlign:"center",color:C.text3}}>Aucune simulation liée à ce prospect</div>:
+    <div style={{display:"grid",gap:10}}>{detailSims.map((s,i)=><div key={i} style={{padding:12,borderRadius:10,border:"1px solid "+C.border,background:C.bg}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div><span style={{fontWeight:700,color:C.navy}}>{s.client_entreprise||s.client_nom||"Sans nom"}</span><Badge color={PC[s.statut]||C.text3} style={{marginLeft:8}}>{PL[s.statut]||s.statut}</Badge></div>
+        <span style={{fontSize:11,color:C.text3}}>{fd(s.created_at)}</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,fontSize:12}}>
+        <div><span style={{color:C.text3}}>Invest: </span><span style={{fontWeight:700}}>{fmt(s.parametres?.investissement||0)}€</span></div>
+        <div><span style={{color:C.text3}}>Aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(s.montant_aides_total||0)}€</span></div>
+        <div><span style={{color:C.text3}}>Loyer: </span><span style={{fontWeight:700}}>{fmt(s.montant_loyer_mensuel||0)}€/m</span></div>
+        <div><span style={{color:C.text3}}>Gain: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(s.gain_net_annuel||0)}€/an</span></div>
+      </div>
+      {s.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2,marginTop:4}}>Équipement: {s.parametres.equipement_label}</div>}
+      {s.notes&&<div style={{fontSize:11,color:C.text3,marginTop:4,fontStyle:"italic"}}>{s.notes}</div>}
+    </div>)}</div>}
+  </Modal>
+  {/* Create/Edit Modal */}
+  <Modal open={!!m&&m!=="detail"} onClose={()=>sM(null)} title={m==="new"?"Nouveau prospect":"Modifier "+f.raison_sociale} wide>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><div style={{gridColumn:"1/3"}}><div style={{display:"flex",gap:8,alignItems:"flex-end"}}><div style={{flex:1}}><Input label="SIRET" value={f.siret||""} onChange={v=>F("siret",v)} placeholder="14 chiffres"/></div><Btn onClick={lookup} color={C.blue} small disabled={sl} style={{marginBottom:10}}>{sl?"...":"Lookup"}</Btn></div></div><Input label="Taille" value={f.taille||"pme"} onChange={v=>F("taille",v)} options={[{value:"tpe",label:"TPE"},{value:"pme",label:"PME"},{value:"eti",label:"ETI"},{value:"ge",label:"GE"}]}/><Input label="Raison sociale*" value={f.raison_sociale||""} onChange={v=>F("raison_sociale",v)}/><Input label="Code NAF" value={f.code_naf||""} onChange={v=>F("code_naf",v)}/><Input label="Ville" value={f.ville||""} onChange={v=>F("ville",v)}/></div>
     <div style={{fontSize:12,fontWeight:700,color:C.navy,margin:"8px 0"}}>Contact</div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Nom" value={f.contact_nom||""} onChange={v=>F("contact_nom",v)}/><Input label="Email" value={f.contact_email||""} onChange={v=>F("contact_email",v)} type="email"/><Input label="Téléphone" value={f.contact_telephone||""} onChange={v=>F("contact_telephone",v)}/><Input label="Fonction" value={f.contact_fonction||""} onChange={v=>F("contact_fonction",v)}/><Input label="Source" value={f.source||"direct"} onChange={v=>F("source",v)} options={["direct","site_web","salon","partenaire","recommandation","prospection","entrant"].map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Statut" value={f.statut||"nouveau"} onChange={v=>F("statut",v)} options={Object.keys(SC).map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Potentiel €" value={f.montant_potentiel||""} onChange={v=>F("montant_potentiel",v?parseFloat(v):null)} type="number"/><Input label="Score 0-100" value={f.score_lead||0} onChange={v=>F("score_lead",Math.min(100,Math.max(0,parseInt(v)||0)))} type="number"/></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Nom" value={f.contact_nom||""} onChange={v=>F("contact_nom",v)}/><Input label="Email" value={f.contact_email||""} onChange={v=>F("contact_email",v)} type="email"/><Input label="Téléphone" value={f.contact_telephone||""} onChange={v=>F("contact_telephone",v)}/><Input label="Fonction" value={f.contact_fonction||""} onChange={v=>F("contact_fonction",v)}/><Input label="Source" value={f.source||"direct"} onChange={v=>F("source",v)} options={["direct","site_web","salon","partenaire","recommandation","prospection","entrant","simulateur"].map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Statut" value={f.statut||"nouveau"} onChange={v=>F("statut",v)} options={Object.keys(SC).map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Potentiel €" value={f.montant_potentiel||""} onChange={v=>F("montant_potentiel",v?parseFloat(v):null)} type="number"/><Input label="Score 0-100" value={f.score_lead||0} onChange={v=>F("score_lead",Math.min(100,Math.max(0,parseInt(v)||0)))} type="number"/></div>
     <Input label="Notes" value={f.notes||""} onChange={v=>F("notes",v)} rows={2}/>
-    <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{const ok=m==="new"?await create(f):await update(f.id,f);if(ok){fl(m==="new"?"Créé ✓":"MAJ ✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+      {m==="edit"&&<Btn small color={C.purple} variant="outline" onClick={()=>{sDetail(f);sM(null)}}>Voir les offres</Btn>}
+      <div style={{display:"flex",gap:8,marginLeft:"auto"}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{const ok=m==="new"?await create(f):await update(f.id,f);if(ok){fl(m==="new"?"Créé ✓":"MAJ ✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div>
+    </div>
   </Modal></div>}
 
 // === Pipeline ===
-function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);useEffect(()=>{fj(ADM+"/pipeline").then(r=>{sP(r);sL(false)})},[]);if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;const g=p?.grouped||{};return<div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Pipeline</h2><p style={{fontSize:13,color:C.text3,marginBottom:16}}>{p?.count||0} simulations</p><div style={{display:"flex",gap:12,overflowX:"auto",pb:8}}>{["brouillon","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.investissement)||0),0);return<div key={s} style={{minWidth:230,flex:1,background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden"}}><div style={{padding:"10px 14px",borderBottom:"2px solid "+PC[s],display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,fontWeight:700,color:PC[s]}}>{PL[s]}</div><div style={{fontSize:10,color:C.text3}}>{items.length}</div></div>{tot>0&&<span style={{fontSize:11,fontWeight:700,color:C.text2}}>{Math.round(tot/1000)}k€</span>}</div><div style={{padding:8,maxHeight:400,overflowY:"auto"}}>{items.length===0?<div style={{padding:16,textAlign:"center",fontSize:11,color:C.text3}}>Vide</div>:items.map((it,i)=><div key={i} style={{padding:10,marginBottom:6,borderRadius:8,border:"1px solid "+C.border,background:C.bg,fontSize:12}}><div style={{fontWeight:700,color:C.navy,marginBottom:2}}>{it.client_entreprise||it.prospect_raison_sociale||it.client_nom||"Sans nom"}</div>{it.equipement_libelle&&<div style={{fontSize:11,color:C.text2,marginBottom:2}}>{it.equipement_libelle}</div>}<div style={{display:"flex",justifyContent:"space-between"}}>{it.investissement&&<span style={{fontWeight:700,color:C.green}}>{fmt(it.investissement)}€</span>}<span style={{fontSize:10,color:C.text3}}>{fa(it.updated_at)}</span></div></div>)}</div></div>})}</div></div>}
+function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[users,sU]=useState([]);const[uf,sUF]=useState("");const[detail,sD]=useState(null);
+  const load=()=>{sL(true);const q=uf?`?user_id=${uf}`:"";fj(ADM+"/pipeline"+q).then(r=>{sP(r);sL(false)})};
+  useEffect(()=>{load();fj(ADM+"/user-stats").then(r=>sU(r?.data||[]))},[uf]);
+  const updateStatus=async(simId,newStatus)=>{await fj(ADM+"/simulations/"+simId,{method:"PUT",body:JSON.stringify({statut:newStatus})});load()};
+  if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
+  const g=p?.grouped||{};const total=p?.count||0;const totVal=Object.values(g).flat().reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);
+  return<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Pipeline</h2><p style={{fontSize:13,color:C.text3}}>{total} simulations — {totVal?Math.round(totVal/1000)+"k€":"0€"} volume total</p></div>
+      <div style={{display:"flex",gap:8}}>
+        <select value={uf} onChange={e=>{sUF(e.target.value)}} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
+        <Btn small color={C.teal} variant="outline" onClick={load}>Actualiser</Btn>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} style={{minWidth:240,flex:1,background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden"}}>
+      <div style={{padding:"10px 14px",borderBottom:"2px solid "+(PC[s]||C.text3),display:"flex",justifyContent:"space-between",alignItems:"center",background:PC[s]+"08"}}>
+        <div><div style={{fontSize:12,fontWeight:700,color:PC[s]}}>{PL[s]}</div><div style={{fontSize:10,color:C.text3}}>{items.length} dossier{items.length>1?"s":""}</div></div>
+        {tot>0&&<span style={{fontSize:12,fontWeight:800,color:C.text2}}>{Math.round(tot/1000)}k€</span>}
+      </div>
+      <div style={{padding:8,maxHeight:500,overflowY:"auto"}}>{items.length===0?<div style={{padding:20,textAlign:"center",fontSize:11,color:C.text3}}>Aucun dossier</div>:items.map((it,i)=>{
+        const inv=Number(it.parametres?.investissement)||Number(it.investissement)||0;
+        const aides=Number(it.montant_aides_total)||Number(it.resultats?.total_aides)||0;
+        const equip=it.parametres?.equipement_label||it.equipement_libelle||"";
+        return<div key={it.id||i} onClick={()=>sD(it)} style={{padding:10,marginBottom:6,borderRadius:8,border:"1px solid "+C.border,background:C.bg,fontSize:12,cursor:"pointer",transition:"box-shadow 0.15s",":hover":{boxShadow:"0 2px 8px rgba(0,0,0,0.1)"}}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:4}}>
+            <div style={{fontWeight:700,color:C.navy,fontSize:12.5}}>{it.client_entreprise||it.prospect_raison_sociale||it.client_nom||"Sans nom"}</div>
+            <span style={{fontSize:10,color:C.text3,whiteSpace:"nowrap",marginLeft:6}}>{fa(it.updated_at||it.created_at)}</span>
+          </div>
+          {equip&&<div style={{fontSize:11,color:C.text2,marginBottom:3}}>{equip}</div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {inv>0&&<span style={{fontSize:11,fontWeight:700,color:C.navy}}>{fmt(Math.round(inv))}€</span>}
+            {aides>0&&<span style={{fontSize:11,fontWeight:600,color:C.green}}>Aides: {fmt(Math.round(aides))}€</span>}
+          </div>
+        </div>})}</div>
+    </div>})}</div>
+    {/* Detail Modal */}
+    <Modal open={!!detail} onClose={()=>sD(null)} title={"Simulation — "+(detail?.client_entreprise||detail?.client_nom||"Sans nom")} wide>
+      {detail&&<div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Informations</div>
+            <div style={{fontSize:12,display:"grid",gap:4}}>
+              <div><span style={{color:C.text3}}>Client: </span><span style={{fontWeight:600}}>{detail.client_entreprise||detail.client_nom||"—"}</span></div>
+              <div><span style={{color:C.text3}}>Taille: </span>{detail.client_taille?<Badge color={C.teal}>{detail.client_taille}</Badge>:"—"}</div>
+              <div><span style={{color:C.text3}}>Équipement: </span>{detail.parametres?.equipement_label||"—"}</div>
+              <div><span style={{color:C.text3}}>Créée: </span>{fd(detail.created_at)}</div>
+              <div><span style={{color:C.text3}}>Notes: </span>{detail.notes||"—"}</div>
+            </div>
+          </div>
+          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Résultats financiers</div>
+            <div style={{fontSize:12,display:"grid",gap:4}}>
+              <div><span style={{color:C.text3}}>Investissement: </span><span style={{fontWeight:700,color:C.navy}}>{fmt(detail.parametres?.investissement||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Total aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(detail.montant_aides_total||detail.resultats?.total_aides||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Loyer mensuel: </span><span style={{fontWeight:700}}>{fmt(detail.montant_loyer_mensuel||detail.resultats?.mensualite_nette||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Gain annuel: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(detail.gain_net_annuel||detail.resultats?.economie_annuelle||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Durée: </span>{detail.parametres?.duree_ans||"—"} ans — Taux: {detail.parametres?.taux||"—"}%</div>
+            </div>
+          </div>
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Changer le statut</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
+        </div>
+      </div>}
+    </Modal>
+  </div>}
 
 // === Activites ===
-function Activites(){const{data,loading,create,remove}=useCrud("activites");const[m,sM]=useState(false);const[t,sT]=useState("");const[f,sF]=useState({});const[ps,sPS]=useState([]);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fj(ADM+"/prospects").then(r=>sPS(r?.data||[]))},[]);const TI={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Activités</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({tenant_id:TID,type:"appel",titre:"",date_planifiee:new Date().toISOString().slice(0,16),statut:"planifiee",prospect_id:ps[0]?.id||""});sM(true)}} color={C.teal}>+ Nouvelle</Btn></div><DT loading={loading} data={data} onDelete={r=>{if(confirm("Supprimer?"))remove(r.id).then(()=>fl("✓"))}} columns={[{key:"type",label:"",render:v=><span style={{fontSize:16}}>{TI[v]||"📌"}</span>},{key:"titre",label:"Titre",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"type",label:"Type",render:v=><Badge color={C.teal}>{v}</Badge>},{key:"statut",label:"Statut",render:v=><Badge color={v==="realisee"?C.green:v==="annulee"?C.red:C.orange}>{v}</Badge>},{key:"date_planifiee",label:"Date",render:v=>fd(v)},{key:"created_at",label:"",render:v=><span style={{fontSize:11,color:C.text3}}>{fa(v)}</span>}]}/><Modal open={m} onClose={()=>sM(false)} title="Nouvelle activité"><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}><Input label="Type*" value={f.type||"appel"} onChange={v=>F("type",v)} options={Object.entries(TI).map(([k,v])=>({value:k,label:v+" "+k}))}/><Input label="Prospect" value={f.prospect_id||""} onChange={v=>F("prospect_id",v)} options={[{value:"",label:"Aucun"},...ps.map(p=>({value:p.id,label:p.raison_sociale}))]}/><div style={{gridColumn:"1/3"}}><Input label="Titre*" value={f.titre||""} onChange={v=>F("titre",v)}/></div><Input label="Date" value={f.date_planifiee||""} onChange={v=>F("date_planifiee",v)} type="datetime-local"/><Input label="Statut" value={f.statut||"planifiee"} onChange={v=>F("statut",v)} options={["planifiee","realisee","annulee","reportee"].map(v=>({value:v,label:v}))}/></div><Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={3}/><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(false)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(await create(f)){fl("Créée ✓");sM(false)}}}>Créer</Btn></div></Modal></div>}
+function Activites(){const{data,loading,create,remove}=useCrud("activites");const[m,sM]=useState(false);const[t,sT]=useState("");const[f,sF]=useState({});const[ps,sPS]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[tf,sTF]=useState("");
+  const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
+  useEffect(()=>{fj(ADM+"/prospects").then(r=>sPS(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+  const TI={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
+  const filtered=data.filter(d=>{if(uf&&d.user_id!==uf)return false;if(tf&&d.type!==tf)return false;return true}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  // Stats
+  const today=new Date().toISOString().slice(0,10);const todayCount=data.filter(d=>d.created_at?.startsWith(today)).length;const propCount=data.filter(d=>d.type==="proposition").length;const noteCount=data.filter(d=>d.type==="note").length;
+  return<div><Toast msg={t}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Activités</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length} activités enregistrées</p></div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <select value={uf} onChange={e=>sUF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
+        <select value={tf} onChange={e=>sTF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les types</option>{Object.entries(TI).map(([k,v])=><option key={k} value={k}>{v} {k}</option>)}</select>
+        <Btn onClick={()=>{sF({tenant_id:TID,type:"appel",titre:"",date_planifiee:new Date().toISOString().slice(0,16),statut:"planifiee",prospect_id:ps[0]?.id||""});sM(true)}} color={C.teal}>+ Nouvelle</Btn>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+      <Stat icon="📊" value={data.length} label="Total" color={C.navy}/>
+      <Stat icon="📅" value={todayCount} label="Aujourd'hui" color={C.teal}/>
+      <Stat icon="📄" value={propCount} label="Propositions" color={C.purple}/>
+      <Stat icon="📝" value={noteCount} label="Notes/Connexions" color={C.blue}/>
+    </div>
+    <DT loading={loading} data={filtered} onDelete={r=>{if(confirm("Supprimer?"))remove(r.id).then(()=>fl("✓"))}} columns={[
+      {key:"type",label:"",render:v=><span style={{fontSize:16}}>{TI[v]||"📌"}</span>},
+      {key:"titre",label:"Titre",render:v=><span style={{fontWeight:600}}>{v}</span>},
+      {key:"type",label:"Type",render:v=><Badge color={v==="proposition"?C.purple:v==="note"?C.blue:C.teal}>{v}</Badge>},
+      {key:"statut",label:"Statut",render:v=><Badge color={v==="realisee"?C.green:v==="annulee"?C.red:C.orange}>{v}</Badge>},
+      {key:"user_id",label:"Utilisateur",render:v=>{const u=users.find(x=>x.id===v);return u?<span style={{fontSize:11}}>{u.prenom} {u.nom}</span>:<span style={{fontSize:11,color:C.text3}}>—</span>}},
+      {key:"date_planifiee",label:"Date",render:v=>fd(v)},
+      {key:"created_at",label:"",render:v=><span style={{fontSize:11,color:C.text3}}>{fa(v)}</span>}
+    ]}/>
+    <Modal open={m} onClose={()=>sM(false)} title="Nouvelle activité">
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Input label="Type*" value={f.type||"appel"} onChange={v=>F("type",v)} options={Object.entries(TI).map(([k,v])=>({value:k,label:v+" "+k}))}/>
+        <Input label="Prospect" value={f.prospect_id||""} onChange={v=>F("prospect_id",v)} options={[{value:"",label:"Aucun"},...ps.map(p=>({value:p.id,label:p.raison_sociale}))]}/>
+        <div style={{gridColumn:"1/3"}}><Input label="Titre*" value={f.titre||""} onChange={v=>F("titre",v)}/></div>
+        <Input label="Date" value={f.date_planifiee||""} onChange={v=>F("date_planifiee",v)} type="datetime-local"/>
+        <Input label="Statut" value={f.statut||"planifiee"} onChange={v=>F("statut",v)} options={["planifiee","realisee","annulee","reportee"].map(v=>({value:v,label:v}))}/>
+      </div>
+      <Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={3}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(false)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(await create(f)){fl("Créée ✓");sM(false)}}}>Créer</Btn></div>
+    </Modal></div>}
 
 // === Admin pages ===
 function Organismes(){const{data,loading,create,update,remove}=useCrud("organismes");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Organismes</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",sigle:"",type:"national",pays:"FR",couleur:"#0d9488",actif:true});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Désactiver?"))remove(r.id).then(()=>fl("✓"))}} columns={[{key:"sigle",label:"Sigle",render:(v,r)=><span style={{fontWeight:700,color:r.couleur}}>{v}</span>},{key:"nom",label:"Nom"},{key:"type",label:"Type",render:v=><Badge color={{national:C.teal,europeen:C.purple,regional:"#7e22ce",fiscal:C.gold}[v]}>{v}</Badge>},{key:"actif",label:"",render:v=>v?"✅":"❌"}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouvel organisme":"Modifier"}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}><Input label="Sigle*" value={f.sigle||""} onChange={v=>F("sigle",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Type" value={f.type||"national"} onChange={v=>F("type",v)} options={[{value:"national",label:"National"},{value:"europeen",label:"Européen"},{value:"regional",label:"Régional"},{value:"fiscal",label:"Fiscal"}]}/><Input label="Couleur" value={f.couleur||""} onChange={v=>F("couleur",v)} type="color"/></div><Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={2}/><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal></div>}
