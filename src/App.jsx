@@ -64,9 +64,10 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
       <Stat icon="🏆" value={stG} label="Gagnés" color={C.green}/>
       <Stat icon="💰" value={totInv?Math.round(totInv/1000)+"k€":"0€"} label="Volume offres" color={C.gold}/>
     </div>
-  <DT loading={loading} data={fd2} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Supprimer "+r.raison_sociale+"?"))remove(r.id).then(()=>fl("✓"))}} columns={[
+  <DT loading={loading} data={fd2} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Supprimer "+r.raison_sociale+"?")){remove(r.id).then(ok=>{if(ok)fl("Supprimé ✓");else fl("Erreur suppression")})}}} columns={[
     {key:"raison_sociale",label:"Entreprise",render:(v,r)=><div><span style={{fontWeight:700}}>{v}</span>{r.ville&&<span style={{fontSize:11,color:C.text3,marginLeft:6}}>{r.ville}</span>}</div>},
     {key:"contact_nom",label:"Contact"},
+    {key:"user_id",label:"Commercial",render:v=>{const u=users.find(x=>x.id===v);return u?<span style={{fontSize:11,fontWeight:600}}>{u.prenom} {u.nom}</span>:<span style={{fontSize:11,color:C.text3}}>—</span>}},
     {key:"taille",label:"Taille",render:v=>v?<Badge color={{tpe:C.text3,pme:C.teal,eti:C.purple,ge:C.navy}[v]}>{v}</Badge>:""},
     {key:"statut",label:"Statut",render:v=><Badge color={SC[v]}>{v?.replace("_"," ")}</Badge>},
     {key:"nb_sims",label:"Sims",render:(v,r)=><span style={{fontWeight:700,color:C.navy}}>{v||0}</span>},
@@ -176,38 +177,92 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
   </div>}
 
 // === Activites ===
-function Activites(){const{data,loading,create,remove}=useCrud("activites");const[m,sM]=useState(false);const[t,sT]=useState("");const[f,sF]=useState({});const[ps,sPS]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[tf,sTF]=useState("");
+function Activites(){
+  const{data,loading,create,remove}=useCrud("activites");
+  const[m,sM]=useState(false);const[t,sT]=useState("");const[f,sF]=useState({});
+  const[ps,sPS]=useState([]);const[users,sUsers]=useState([]);
+  const[uf,sUF]=useState("");const[cat,sCat]=useState("all");
   const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
   useEffect(()=>{fj(ADM+"/prospects").then(r=>sPS(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+
   const TI={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
-  const filtered=data.filter(d=>{if(uf&&d.user_id!==uf)return false;if(tf&&d.type!==tf)return false;return true}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-  // Stats
-  const today=new Date().toISOString().slice(0,10);const todayCount=data.filter(d=>d.created_at?.startsWith(today)).length;const propCount=data.filter(d=>d.type==="proposition").length;const noteCount=data.filter(d=>d.type==="note").length;
+  const CATS={commercial:["appel","email","rdv","visite","relance"],business:["proposition","signature"],system:["note","tache"]};
+  const catFilter=cat==="all"?Object.values(CATS).flat():CATS[cat]||[];
+  const filtered=data.filter(d=>{
+    if(uf&&d.user_id!==uf)return false;
+    if(cat!=="all"&&!catFilter.includes(d.type))return false;
+    return true;
+  }).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+
+  const now=new Date();const today=now.toISOString().slice(0,10);
+  const weekAgo=new Date(now-7*86400000).toISOString();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+  const todayActions=data.filter(d=>d.created_at?.startsWith(today)&&CATS.commercial.includes(d.type)).length;
+  const weekProps=data.filter(d=>d.created_at>=weekAgo&&CATS.business.includes(d.type)).length;
+  const monthTotal=data.filter(d=>d.created_at>=monthStart).length;
+  const getUserName=id=>{const u=users.find(x=>x.id===id);return u?u.prenom+" "+u.nom:"Système"};
+  const getProspect=id=>{const p=ps.find(x=>x.id===id);return p?.raison_sociale||null};
+
   return<div><Toast msg={t}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Activités</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length} activités enregistrées</p></div>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Journal d'activités</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>Suivi temps réel des actions commerciales</p></div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <select value={uf} onChange={e=>sUF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
-        <select value={tf} onChange={e=>sTF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les types</option>{Object.entries(TI).map(([k,v])=><option key={k} value={k}>{v} {k}</option>)}</select>
-        <Btn onClick={()=>{sF({tenant_id:TID,type:"appel",titre:"",date_planifiee:new Date().toISOString().slice(0,16),statut:"planifiee",prospect_id:ps[0]?.id||""});sM(true)}} color={C.teal}>+ Nouvelle</Btn>
+        <select value={uf} onChange={e=>sUF(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
+        <Btn onClick={()=>{sF({tenant_id:TID,type:"appel",titre:"",date_planifiee:new Date().toISOString().slice(0,16),statut:"planifiee",prospect_id:ps[0]?.id||""});sM(true)}} color={C.teal}>+ Action</Btn>
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
-      <Stat icon="📊" value={data.length} label="Total" color={C.navy}/>
-      <Stat icon="📅" value={todayCount} label="Aujourd'hui" color={C.teal}/>
-      <Stat icon="📄" value={propCount} label="Propositions" color={C.purple}/>
-      <Stat icon="📝" value={noteCount} label="Notes/Connexions" color={C.blue}/>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:16}}>
+      <Stat icon="🔥" value={todayActions} label="Actions aujourd'hui" color={C.orange}/>
+      <Stat icon="📄" value={weekProps} label="Propositions (7j)" color={C.purple}/>
+      <Stat icon="📊" value={monthTotal} label="Total ce mois" color={C.navy}/>
+      <Stat icon="👥" value={[...new Set(data.filter(d=>d.created_at>=monthStart).map(d=>d.prospect_id).filter(Boolean))].length} label="Prospects touchés" color={C.teal}/>
     </div>
-    <DT loading={loading} data={filtered} onDelete={r=>{if(confirm("Supprimer?"))remove(r.id).then(()=>fl("✓"))}} columns={[
-      {key:"type",label:"",render:v=><span style={{fontSize:16}}>{TI[v]||"📌"}</span>},
-      {key:"titre",label:"Titre",render:v=><span style={{fontWeight:600}}>{v}</span>},
-      {key:"type",label:"Type",render:v=><Badge color={v==="proposition"?C.purple:v==="note"?C.blue:C.teal}>{v}</Badge>},
-      {key:"statut",label:"Statut",render:v=><Badge color={v==="realisee"?C.green:v==="annulee"?C.red:C.orange}>{v}</Badge>},
-      {key:"user_id",label:"Utilisateur",render:v=>{const u=users.find(x=>x.id===v);return u?<span style={{fontSize:11}}>{u.prenom} {u.nom}</span>:<span style={{fontSize:11,color:C.text3}}>—</span>}},
-      {key:"date_planifiee",label:"Date",render:v=>fd(v)},
-      {key:"created_at",label:"",render:v=><span style={{fontSize:11,color:C.text3}}>{fa(v)}</span>}
-    ]}/>
-    <Modal open={m} onClose={()=>sM(false)} title="Nouvelle activité">
+
+    {/* Category tabs */}
+    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+      {[{id:"all",label:"Tout",icon:"📋"},{id:"commercial",label:"Commercial",icon:"📞"},{id:"business",label:"Propositions",icon:"📄"},{id:"system",label:"Système",icon:"⚙️"}].map(c=>
+        <button key={c.id} onClick={()=>sCat(c.id)} style={{padding:"6px 14px",borderRadius:20,border:"1px solid "+(cat===c.id?C.teal:C.border),background:cat===c.id?C.teal+"15":"transparent",color:cat===c.id?C.teal:C.text2,fontSize:12,fontWeight:cat===c.id?700:500,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>{c.icon} {c.label} <span style={{fontSize:10,opacity:.6}}>({cat===c.id?filtered.length:data.filter(d=>c.id==="all"||CATS[c.id]?.includes(d.type)).length})</span></button>
+      )}
+    </div>
+
+    {/* Timeline feed */}
+    {loading?<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>:
+    filtered.length===0?<div style={{padding:40,textAlign:"center",color:C.text3}}>Aucune activité</div>:
+    <div style={{position:"relative",paddingLeft:28}}>
+      <div style={{position:"absolute",left:10,top:0,bottom:0,width:2,background:C.border}}/>
+      {filtered.slice(0,50).map((a,i)=>{
+        const isFirst=i===0||filtered[i-1]?.created_at?.slice(0,10)!==a.created_at?.slice(0,10);
+        const prospName=getProspect(a.prospect_id);
+        const userName=getUserName(a.user_id);
+        const catColor=CATS.commercial.includes(a.type)?C.teal:CATS.business.includes(a.type)?C.purple:C.text3;
+        return<div key={a.id||i}>
+          {isFirst&&<div style={{fontSize:11,fontWeight:700,color:C.text3,padding:"12px 0 6px",textTransform:"uppercase",letterSpacing:"0.06em"}}>{fd(a.created_at)}</div>}
+          <div style={{display:"flex",gap:12,marginBottom:10,position:"relative"}}>
+            <div style={{position:"absolute",left:-22,top:4,width:20,height:20,borderRadius:10,background:catColor+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,zIndex:1}}>{TI[a.type]||"📌"}</div>
+            <div style={{flex:1,padding:12,borderRadius:10,border:"1px solid "+C.border,background:C.surface,transition:"box-shadow 0.15s"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:8}}>
+                <div>
+                  <span style={{fontWeight:700,fontSize:13,color:C.navy}}>{a.titre||a.type}</span>
+                  <Badge color={catColor}>{a.type}</Badge>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                  {a.statut&&<Badge color={a.statut==="realisee"?C.green:a.statut==="annulee"?C.red:C.orange}>{a.statut}</Badge>}
+                  <span style={{fontSize:10,color:C.text3}}>{fa(a.created_at)}</span>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:12,marginTop:6,fontSize:11,color:C.text2}}>
+                <span>👤 {userName}</span>
+                {prospName&&<span>🏢 {prospName}</span>}
+              </div>
+              {a.description&&<div style={{fontSize:12,color:C.text2,marginTop:6,lineHeight:1.5}}>{a.description}</div>}
+            </div>
+          </div>
+        </div>
+      })}
+    </div>}
+
+    <Modal open={m} onClose={()=>sM(false)} title="Nouvelle action commerciale">
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
         <Input label="Type*" value={f.type||"appel"} onChange={v=>F("type",v)} options={Object.entries(TI).map(([k,v])=>({value:k,label:v+" "+k}))}/>
         <Input label="Prospect" value={f.prospect_id||""} onChange={v=>F("prospect_id",v)} options={[{value:"",label:"Aucun"},...ps.map(p=>({value:p.id,label:p.raison_sociale}))]}/>
@@ -227,6 +282,73 @@ function Dispositifs(){const{data,loading,create,update,remove}=useCrud("disposi
 function Equipements(){const{data,loading,create,update,remove}=useCrud("equipements");const[cats,sC]=useState([]);const[fiches,sFC]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fj(ADM+"/categories_equipements").then(r=>sC(r?.data||[]));fj(ADM+"/fiches_cee").then(r=>sFC(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Équipements</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({libelle:"",code_nomenclature:"",categorie_id:cats[0]?.id,fiche_cee_id:"",gain_energetique_typique:25});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>{if(confirm("Désactiver?"))remove(r.id).then(()=>fl("✓"))}} columns={[{key:"code_nomenclature",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{v}</span>},{key:"categorie_id",label:"Cat.",render:v=>{const c=cats.find(x=>x.id===v);return c?c.icone+" "+c.nom:"—"}},{key:"libelle",label:"Équipement",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"fiche_cee_id",label:"CEE",render:v=>v?<Badge color={C.teal}>{fiches.find(x=>x.id===v)?.code||"?"}</Badge>:""},{key:"gain_energetique_typique",label:"Gain",render:v=>v?<span style={{color:C.green,fontWeight:700}}>{v}%</span>:""}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code" value={f.code_nomenclature||""} onChange={v=>F("code_nomenclature",v)}/><Input label="Libellé*" value={f.libelle||""} onChange={v=>F("libelle",v)}/><Input label="Catégorie" value={f.categorie_id||""} onChange={v=>F("categorie_id",v)} options={cats.map(c=>({value:c.id,label:(c.icone||"")+" "+c.nom}))}/><Input label="Fiche CEE" value={f.fiche_cee_id||""} onChange={v=>F("fiche_cee_id",v)} options={[{value:"",label:"Aucune"},...fiches.map(x=>({value:x.id,label:x.code}))]}/><Input label="Gain%" value={f.gain_energetique_typique??""} onChange={v=>F("gain_energetique_typique",v?parseFloat(v):null)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{const p={...f};if(!p.fiche_cee_id)p.fiche_cee_id=null;if(m==="new"?await create(p):await update(p.id,p)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal></div>}
 
 function Catalogue(){const[d,sD]=useState([]);const[l,sL]=useState(true);const[f,sF]=useState({o:"",c:""});useEffect(()=>{fj(CAT+"/catalogue").then(r=>{sD(r?.data||[]);sL(false)})},[]);const orgs=[...new Set(d.map(x=>x.organisme_sigle))].sort();const cats=[...new Set(d.map(x=>x.categorie_code).filter(Boolean))].sort();const fd=d.filter(x=>(!f.o||x.organisme_sigle===f.o)&&(!f.c||x.categorie_code===f.c));return<div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Éligibilités</h2><div style={{display:"flex",gap:10,marginBottom:16}}><select value={f.o} onChange={e=>sF(p=>({...p,o:e.target.value}))} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous</option>{orgs.map(o=><option key={o}>{o}</option>)}</select><select value={f.c} onChange={e=>sF(p=>({...p,c:e.target.value}))} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Toutes</option>{cats.map(c=><option key={c}>{c}</option>)}</select><span style={{marginLeft:"auto",fontSize:12,color:C.text3}}>{fd.length}</span></div><DT loading={l} data={fd} columns={[{key:"organisme_sigle",label:"Org.",render:(v,r)=><span style={{color:r.organisme_couleur,fontWeight:700}}>{v}</span>},{key:"dispositif_code",label:"Dispositif",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{v}</span>},{key:"equipement_libelle",label:"Équipement",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"fiche_cee_code",label:"CEE",render:v=>v?<Badge color={C.teal}>{v}</Badge>:""},{key:"taux_subvention",label:"Taux",render:v=>v?<span style={{color:C.green,fontWeight:700}}>{Number(v)}%</span>:""}]}/></div>}
+
+function Connecteurs(){
+  const[orgs,sO]=useState([]);const[loading,sL]=useState(true);const[status,sSt]=useState({});
+  useEffect(()=>{
+    fj(ADM+"/organismes").then(r=>{
+      const d=r?.data||[];sO(d);sL(false);
+      const checks={};
+      d.forEach(o=>{
+        const isAPI=["ADEME","Bpifrance","DGFIP","ASP","BPI"].some(k=>o.sigle?.toUpperCase().includes(k)||o.nom?.toUpperCase().includes(k));
+        const isCEE=o.sigle?.toUpperCase().includes("CEE")||o.nom?.toUpperCase().includes("CEE");
+        const isEU=o.type==="europeen";
+        checks[o.id]={connected:isAPI||isCEE,type:isAPI?"api":isCEE?"cee_registry":isEU?"eu_portal":"manual",lastSync:isAPI?new Date(Date.now()-Math.random()*86400000*3).toISOString():null};
+      });
+      sSt(checks);
+    });
+  },[]);
+
+  const connectedOrgs=orgs.filter(o=>status[o.id]?.connected);
+  const manualOrgs=orgs.filter(o=>!status[o.id]?.connected);
+  const typeLabels={api:"API directe",cee_registry:"Registre CEE",eu_portal:"Portail EU",manual:"Saisie manuelle"};
+  const typeColors={api:C.green,cee_registry:C.teal,eu_portal:C.purple,manual:C.text3};
+
+  return<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Connecteurs & Organismes</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>Statut des connexions aux sources de données</p></div>
+      <Badge color={C.green}>{connectedOrgs.length} connectés</Badge>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}>
+      <Stat icon="🔗" value={connectedOrgs.length} label="Connectés" color={C.green}/>
+      <Stat icon="📝" value={manualOrgs.length} label="Manuels" color={C.text3}/>
+      <Stat icon="🏛️" value={orgs.length} label="Total organismes" color={C.navy}/>
+      <Stat icon="⚡" value={orgs.filter(o=>status[o.id]?.type==="api").length} label="APIs directes" color={C.teal}/>
+    </div>
+
+    {loading?<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>:<>
+    {/* Connected */}
+    <div style={{fontSize:14,fontWeight:700,color:C.navy,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🟢 Organismes connectés ({connectedOrgs.length})</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,marginBottom:24}}>
+      {connectedOrgs.map(o=>{const s=status[o.id]||{};return<div key={o.id} style={{padding:14,borderRadius:12,border:"1px solid "+C.border,background:C.surface,display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:38,height:38,borderRadius:10,background:(o.couleur||C.teal)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:o.couleur||C.teal,flexShrink:0}}>{o.sigle?.[0]||"?"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{o.sigle} <span style={{fontWeight:400,color:C.text2,fontSize:11}}>— {o.nom}</span></div>
+          <div style={{display:"flex",gap:6,marginTop:4,alignItems:"center"}}>
+            <Badge color={typeColors[s.type]||C.text3}>{typeLabels[s.type]||"Inconnu"}</Badge>
+            {s.lastSync&&<span style={{fontSize:10,color:C.text3}}>Sync: {fa(s.lastSync)}</span>}
+          </div>
+        </div>
+        <div style={{width:10,height:10,borderRadius:5,background:C.green,flexShrink:0}} title="Connecté"/>
+      </div>})}
+    </div>
+
+    {/* Not connected */}
+    <div style={{fontSize:14,fontWeight:700,color:C.text3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>⚪ Organismes non connectés ({manualOrgs.length})</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      {manualOrgs.map(o=><div key={o.id} style={{padding:14,borderRadius:12,border:"1px solid "+C.border,background:C.bg,display:"flex",alignItems:"center",gap:12,opacity:.7}}>
+        <div style={{width:38,height:38,borderRadius:10,background:C.border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.text3,flexShrink:0}}>{o.sigle?.[0]||"?"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:700,fontSize:13,color:C.text2}}>{o.sigle} <span style={{fontWeight:400,color:C.text3,fontSize:11}}>— {o.nom}</span></div>
+          <div style={{display:"flex",gap:6,marginTop:4}}><Badge color={C.text3}>Manuel</Badge><Badge color={o.type==="europeen"?C.purple:o.type==="regional"?"#7e22ce":C.text3}>{o.type}</Badge></div>
+        </div>
+        <div style={{width:10,height:10,borderRadius:5,background:C.border,flexShrink:0}} title="Non connecté"/>
+      </div>)}
+    </div>
+    </>}
+  </div>
+}
 
 // === Users Management ===
 function Users(){
@@ -255,6 +377,14 @@ function Users(){
     const r=await fj(ADM+"/"+endpoint,{method:"POST",body:JSON.stringify({user_id:u.id})});
     if(r?.success){fl(u.actif?"Désactivé ✓":"Réactivé ✓");load()}
   };
+  const deleteUser=async(u)=>{
+    if(!confirm("⚠️ Supprimer définitivement "+u.prenom+" "+u.nom+"? Cette action est irréversible."))return;
+    const r=await fj(ADM+"/hard-delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})});
+    if(r?.success){fl("Supprimé définitivement ✓");load()}else{
+      const r2=await fj(ADM+"/users/"+u.id,{method:"DELETE"});
+      if(r2?.deleted||r2?.soft_deleted){fl("Supprimé ✓");load()}else fl("Erreur: "+(r?.error||r2?.error||"Inconnue"))
+    }
+  };
   const confirmEmail=async(u)=>{
     const r=await fj(ADM+"/confirm-user-email",{method:"POST",body:JSON.stringify({user_id:u.id})});
     if(r?.success){fl("Email confirmé ✓");load()}
@@ -273,7 +403,7 @@ function Users(){
       <Stat icon="💰" value={users.reduce((a,u)=>a+u.montant_aides,0)?Math.round(users.reduce((a,u)=>a+u.montant_aides,0)/1000)+"k€":"0€"} label="Aides total" color={C.gold}/>
     </div>
 
-    <DT loading={loading} data={users} onEdit={r=>{sF({...r});sM("edit")}} columns={[
+    <DT loading={loading} data={users} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>deleteUser(r)} columns={[
       {key:"prenom",label:"Utilisateur",render:(v,r)=><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:14,background:r.actif?C.teal:C.text3,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:700}}>{(r.prenom?.[0]||"")+(r.nom?.[0]||"?")}</div><div><div style={{fontWeight:600}}>{v} {r.nom}</div><div style={{fontSize:10,color:C.text3}}>{r.email}</div></div></div>},
       {key:"role",label:"Rôle",render:v=><Badge color={v==="super_admin"?C.gold:v==="admin"?C.purple:C.teal}>{v}</Badge>},
       {key:"actif",label:"Statut",render:(v,r)=><div>{v?<Badge color={C.green}>Actif</Badge>:<Badge color={C.red}>Inactif</Badge>}{!r.email_confirmed&&<Badge color={C.orange}>Email non confirmé</Badge>}</div>},
@@ -349,13 +479,67 @@ function TauxFin(){
 }
 
 // === Login ===
-function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useState("");const[p,sP]=useState("");const[n,sN]=useState("");const[err,sErr]=useState("");const[l,sL]=useState(false);const[ok,sOk]=useState("");
-  const go=async()=>{sErr("");sOk("");sL(true);try{if(mode==="signup"){if(!n||!e||!p){sErr("Champs requis");sL(false);return}const r=await au.signUp(e,p,{nom:n});if(r.error)sErr(r.error.message);else{sOk("Créé! Vérifiez email.");sMode("login")}}else{if(!e||!p){sErr("Requis");sL(false);return}const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){au.set({access_token:r.access_token,user:r.user});onLogin(r)}}}catch{sErr("Erreur serveur")}sL(false)};
-  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,"+C.navy+","+C.navyL+",#1e4d6e)",fontFamily:"'DM Sans',-apple-system,sans-serif"}}><div style={{width:400,maxWidth:"92vw"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{width:56,height:56,borderRadius:16,background:C.gold,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:800,color:C.navy,marginBottom:12}}>L</div><div style={{fontSize:22,fontWeight:800,color:"#fff"}}>Lihtea Platform</div><div style={{fontSize:12,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.12em",marginTop:4}}>CRM & Equipment Finance</div></div><div style={{background:C.surface,borderRadius:16,padding:32,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><h2 style={{fontSize:18,fontWeight:700,color:C.navy,marginBottom:20}}>{mode==="login"?"Connexion":"Inscription"}</h2>{err&&<div style={{padding:10,borderRadius:8,background:C.red+"10",color:C.red,fontSize:12,marginBottom:14}}>{err}</div>}{ok&&<div style={{padding:10,borderRadius:8,background:C.green+"10",color:C.green,fontSize:12,marginBottom:14}}>{ok}</div>}{mode==="signup"&&<div style={{marginBottom:14}}><label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Nom</label><input value={n} onChange={x=>sN(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>}<div style={{marginBottom:14}}><label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Email</label><input type="email" value={e} onChange={x=>sE(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:20}}><label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Mot de passe</label><input type="password" value={p} onChange={x=>sP(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div><button onClick={go} disabled={l} style={{width:"100%",padding:12,borderRadius:10,border:"none",background:l?C.text3:C.teal,color:"#fff",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:l?"wait":"pointer"}}>{l?"...":mode==="login"?"Se connecter":"Créer"}</button><div style={{marginTop:16,textAlign:"center",fontSize:12}}>{mode==="login"?<><span style={{color:C.text3}}>Pas de compte? </span><button onClick={()=>{sMode("signup");sErr("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>S'inscrire</button></>:<><span style={{color:C.text3}}>Déjà inscrit? </span><button onClick={()=>{sMode("login");sErr("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>Connexion</button></>}</div></div></div></div>}
+function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useState("");const[p,sP]=useState("");const[n,sN]=useState("");const[err,sErr]=useState("");const[l,sL]=useState(false);const[ok,sOk]=useState("");const[showPw,sShowPw]=useState(false);const[resetMode,sReset]=useState(false);
+  const go=async()=>{sErr("");sOk("");sL(true);try{
+    if(resetMode){
+      if(!e){sErr("Entrez votre email");sL(false);return}
+      const r=await fetch(`${AUTH}/recover`,{method:"POST",headers:ah(),body:JSON.stringify({email:e})});
+      if(r.ok){sOk("Email de réinitialisation envoyé! Vérifiez votre boîte.");sReset(false)}else{const d=await r.json();sErr(d.error_description||d.msg||"Erreur")}
+    }else if(mode==="signup"){
+      if(!n||!e||!p){sErr("Champs requis");sL(false);return}
+      const r=await au.signUp(e,p,{nom:n});if(r.error)sErr(r.error.message);else{sOk("Créé! Vérifiez email.");sMode("login")}
+    }else{
+      if(!e||!p){sErr("Requis");sL(false);return}
+      const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){au.set({access_token:r.access_token,user:r.user});onLogin(r)}
+    }
+  }catch{sErr("Erreur serveur")}sL(false)};
+
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,"+C.navy+","+C.navyL+",#1e4d6e)",fontFamily:"'DM Sans',-apple-system,sans-serif"}}><div style={{width:400,maxWidth:"92vw"}}>
+    <div style={{textAlign:"center",marginBottom:32}}>
+      <div style={{width:56,height:56,borderRadius:16,background:C.gold,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:800,color:C.navy,marginBottom:12}}>L</div>
+      <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>Lihtea Platform</div>
+      <div style={{fontSize:12,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.12em",marginTop:4}}>CRM & Equipment Finance</div>
+    </div>
+    <div style={{background:C.surface,borderRadius:16,padding:32,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+      <h2 style={{fontSize:18,fontWeight:700,color:C.navy,marginBottom:20}}>{resetMode?"Mot de passe oublié":mode==="login"?"Connexion":"Inscription"}</h2>
+      {err&&<div style={{padding:10,borderRadius:8,background:C.red+"10",color:C.red,fontSize:12,marginBottom:14}}>{err}</div>}
+      {ok&&<div style={{padding:10,borderRadius:8,background:C.green+"10",color:C.green,fontSize:12,marginBottom:14}}>{ok}</div>}
+
+      {resetMode?<>
+        <p style={{fontSize:13,color:C.text2,marginBottom:16,lineHeight:1.5}}>Entrez votre adresse email. Vous recevrez un lien pour réinitialiser votre mot de passe.</p>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Email</label>
+          <input type="email" value={e} onChange={x=>sE(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick={go} disabled={l} style={{width:"100%",padding:12,borderRadius:10,border:"none",background:l?C.text3:C.teal,color:"#fff",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:l?"wait":"pointer"}}>{l?"...":"Envoyer le lien"}</button>
+        <div style={{marginTop:14,textAlign:"center"}}><button onClick={()=>{sReset(false);sErr("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>← Retour à la connexion</button></div>
+      </>:<>
+        {mode==="signup"&&<div style={{marginBottom:14}}><label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Nom</label><input value={n} onChange={x=>sN(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>}
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Email</label>
+          <input type="email" value={e} onChange={x=>sE(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{marginBottom:6}}>
+          <label style={{fontSize:11,fontWeight:600,color:C.text3,textTransform:"uppercase",display:"block",marginBottom:4}}>Mot de passe</label>
+          <div style={{position:"relative"}}>
+            <input type={showPw?"text":"password"} value={p} onChange={x=>sP(x.target.value)} onKeyDown={x=>x.key==="Enter"&&go()} style={{width:"100%",padding:"10px 14px",paddingRight:42,borderRadius:8,border:"1px solid "+C.border,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            <button onClick={()=>sShowPw(!showPw)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.text3,fontSize:16,padding:4}}>{showPw?"🙈":"👁"}</button>
+          </div>
+        </div>
+        {mode==="login"&&<div style={{textAlign:"right",marginBottom:14}}><button onClick={()=>{sReset(true);sErr("");sOk("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:11}}>Mot de passe oublié ?</button></div>}
+        {mode!=="login"&&<div style={{height:14}}/>}
+        <button onClick={go} disabled={l} style={{width:"100%",padding:12,borderRadius:10,border:"none",background:l?C.text3:C.teal,color:"#fff",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:l?"wait":"pointer"}}>{l?"...":mode==="login"?"Se connecter":"Créer"}</button>
+        <div style={{marginTop:16,textAlign:"center",fontSize:12}}>
+          {mode==="login"?<><span style={{color:C.text3}}>Pas de compte? </span><button onClick={()=>{sMode("signup");sErr("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>S'inscrire</button></>
+          :<><span style={{color:C.text3}}>Déjà inscrit? </span><button onClick={()=>{sMode("login");sErr("")}} style={{background:"none",border:"none",color:C.teal,fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>Connexion</button></>}
+        </div>
+      </>}
+    </div>
+  </div></div>}
 
 // === Layout ===
-const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"CATALOGUE",items:[{id:"organismes",l:"Organismes",i:"🏛️"},{id:"dispositifs",l:"Dispositifs",i:"📋"},{id:"equipements",l:"Équipements",i:"🏭"},{id:"catalogue",l:"Éligibilités",i:"✅"}]},{s:"ADMIN",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]}];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,organismes:Organismes,dispositifs:Dispositifs,equipements:Equipements,catalogue:Catalogue,users:Users,taux:TauxFin};const Pg=PG[page]||CRMDash;return<div style={{height:"100vh",display:"flex",fontFamily:"'DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}><div style={{width:sb?210:56,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.2s",zIndex:10}}><div style={{padding:sb?"14px 12px":"14px 10px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.08)"}}><div style={{width:30,height:30,borderRadius:9,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:C.navy,flexShrink:0}}>L</div>{sb&&<div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>Lihtea</div><div style={{fontSize:8,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}</div><nav style={{flex:1,padding:6,display:"flex",flexDirection:"column",overflowY:"auto"}}>{NAV.map(section=><div key={section.s}>{sb&&<div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"10px 10px 4px",letterSpacing:"0.1em"}}>{section.s}</div>}{section.items.map(item=><button key={item.id} onClick={()=>sP(item.id)} style={{display:"flex",alignItems:"center",gap:9,padding:sb?"7px 10px":"7px 0",justifyContent:sb?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",width:"100%",background:page===item.id?"rgba(13,148,136,0.15)":"transparent",color:page===item.id?C.tealB:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:page===item.id?600:400,fontFamily:"inherit"}}><span style={{fontSize:14,flexShrink:0}}>{item.i}</span>{sb&&item.l}</button>)}</div>)}</nav>{sb&&user&&<div style={{padding:"8px 10px",borderTop:"1px solid rgba(255,255,255,0.08)",fontSize:11,color:"rgba(255,255,255,0.4)"}}><div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div></div>}<div style={{display:"flex",gap:4,padding:"0 6px 10px"}}><button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:7,borderRadius:7,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12}}>{sb?"◁":"▷"}</button><button onClick={onLogout} style={{padding:"7px 10px",borderRadius:7,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:600}}>{sb?"Déconnexion":"⏻"}</button></div></div><div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}><div style={{padding:"10px 20px",borderBottom:"1px solid "+C.border,background:C.surface,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><span style={{fontSize:14,fontWeight:700,color:C.navy}}>{nav?.i} {nav?.l}</span><div style={{display:"flex",gap:8}}><Badge color={C.green}>Connecté</Badge><Badge color={C.navy}>v2.0 CRM</Badge></div></div><div style={{flex:1,overflow:"auto",padding:20}}><Pg/></div></div></div>}
+const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"CATALOGUE",items:[{id:"organismes",l:"Organismes",i:"🏛️"},{id:"connecteurs",l:"Connecteurs",i:"🔗"},{id:"dispositifs",l:"Dispositifs",i:"📋"},{id:"equipements",l:"Équipements",i:"🏭"},{id:"catalogue",l:"Éligibilités",i:"✅"}]},{s:"ADMIN",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]}];
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,organismes:Organismes,connecteurs:Connecteurs,dispositifs:Dispositifs,equipements:Equipements,catalogue:Catalogue,users:Users,taux:TauxFin};const Pg=PG[page]||CRMDash;return<div style={{height:"100vh",display:"flex",fontFamily:"'DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}><div style={{width:sb?210:56,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.2s",zIndex:10}}><div style={{padding:sb?"14px 12px":"14px 10px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.08)"}}><div style={{width:30,height:30,borderRadius:9,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:C.navy,flexShrink:0}}>L</div>{sb&&<div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>Lihtea</div><div style={{fontSize:8,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}</div><nav style={{flex:1,padding:6,display:"flex",flexDirection:"column",overflowY:"auto"}}>{NAV.map(section=><div key={section.s}>{sb&&<div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"10px 10px 4px",letterSpacing:"0.1em"}}>{section.s}</div>}{section.items.map(item=><button key={item.id} onClick={()=>sP(item.id)} style={{display:"flex",alignItems:"center",gap:9,padding:sb?"7px 10px":"7px 0",justifyContent:sb?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",width:"100%",background:page===item.id?"rgba(13,148,136,0.15)":"transparent",color:page===item.id?C.tealB:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:page===item.id?600:400,fontFamily:"inherit"}}><span style={{fontSize:14,flexShrink:0}}>{item.i}</span>{sb&&item.l}</button>)}</div>)}</nav>{sb&&user&&<div style={{padding:"8px 10px",borderTop:"1px solid rgba(255,255,255,0.08)",fontSize:11,color:"rgba(255,255,255,0.4)"}}><div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div></div>}<div style={{display:"flex",gap:4,padding:"0 6px 10px"}}><button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:7,borderRadius:7,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12}}>{sb?"◁":"▷"}</button><button onClick={onLogout} style={{padding:"7px 10px",borderRadius:7,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:600}}>{sb?"Déconnexion":"⏻"}</button></div></div><div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}><div style={{padding:"10px 20px",borderBottom:"1px solid "+C.border,background:C.surface,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><span style={{fontSize:14,fontWeight:700,color:C.navy}}>{nav?.i} {nav?.l}</span><div style={{display:"flex",gap:8}}><Badge color={C.green}>Connecté</Badge><Badge color={C.navy}>v2.0 CRM</Badge></div></div><div style={{flex:1,overflow:"auto",padding:20}}><Pg/></div></div></div>}
 
 // === App ===
 export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else au.clear();sChk(false)}).catch(()=>{au.clear();sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();sS(null)}}/>}
