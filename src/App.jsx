@@ -30,7 +30,7 @@ function Input({label,value,onChange,type="text",placeholder,rows,options,disabl
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
 function Toast({msg}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:200,padding:"10px 20px",borderRadius:10,background:C.green,color:"#fff",fontSize:13,fontWeight:600}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
-function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"9px 12px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"9px 12px",color:"#fff",textAlign:"right",fontSize:10,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
+function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
 function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon="⚠️"}){
   if(!open)return null;
   return<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.6)",backdropFilter:"blur(6px)",animation:"cfmIn .2s ease"}} onClick={onClose}>
@@ -566,7 +566,59 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
 
 // === Layout ===
 const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"CATALOGUE",items:[{id:"organismes",l:"Organismes",i:"🏛️"},{id:"connecteurs",l:"Connecteurs",i:"🔗"},{id:"dispositifs",l:"Dispositifs",i:"📋"},{id:"equipements",l:"Équipements",i:"🏭"},{id:"catalogue",l:"Éligibilités",i:"✅"}]},{s:"ADMIN",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]}];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,organismes:Organismes,connecteurs:Connecteurs,dispositifs:Dispositifs,equipements:Equipements,catalogue:Catalogue,users:Users,taux:TauxFin};const Pg=PG[page]||CRMDash;return<div style={{height:"100vh",display:"flex",fontFamily:"'DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}><div style={{width:sb?210:56,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.2s",zIndex:10}}><div style={{padding:sb?"14px 12px":"14px 10px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.08)"}}><div style={{width:30,height:30,borderRadius:9,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:C.navy,flexShrink:0}}>L</div>{sb&&<div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>Lihtea</div><div style={{fontSize:8,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}</div><nav style={{flex:1,padding:6,display:"flex",flexDirection:"column",overflowY:"auto"}}>{NAV.map(section=><div key={section.s}>{sb&&<div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"10px 10px 4px",letterSpacing:"0.1em"}}>{section.s}</div>}{section.items.map(item=><button key={item.id} onClick={()=>sP(item.id)} style={{display:"flex",alignItems:"center",gap:9,padding:sb?"7px 10px":"7px 0",justifyContent:sb?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",width:"100%",background:page===item.id?"rgba(13,148,136,0.15)":"transparent",color:page===item.id?C.tealB:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:page===item.id?600:400,fontFamily:"inherit"}}><span style={{fontSize:14,flexShrink:0}}>{item.i}</span>{sb&&item.l}</button>)}</div>)}</nav>{sb&&user&&<div style={{padding:"8px 10px",borderTop:"1px solid rgba(255,255,255,0.08)",fontSize:11,color:"rgba(255,255,255,0.4)"}}><div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div></div>}<div style={{display:"flex",gap:4,padding:"0 6px 10px"}}><button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:7,borderRadius:7,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12}}>{sb?"◁":"▷"}</button><button onClick={onLogout} style={{padding:"7px 10px",borderRadius:7,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:600}}>{sb?"Déconnexion":"⏻"}</button></div></div><div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}><div style={{padding:"10px 20px",borderBottom:"1px solid "+C.border,background:C.surface,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><span style={{fontSize:14,fontWeight:700,color:C.navy}}>{nav?.i} {nav?.l}</span><div style={{display:"flex",gap:8}}><Badge color={C.green}>Connecté</Badge><Badge color={C.navy}>v2.0 CRM</Badge></div></div><div style={{flex:1,overflow:"auto",padding:20}}><Pg/></div></div></div>}
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,organismes:Organismes,connecteurs:Connecteurs,dispositifs:Dispositifs,equipements:Equipements,catalogue:Catalogue,users:Users,taux:TauxFin};const Pg=PG[page]||CRMDash;
+/* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
+return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
+{/* SIDEBAR — mirrors front-end .sidebar exactly */}
+<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)"}}>
+{/* Header — logo block */}
+<div style={{padding:sb?"20px 16px":"20px 12px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
+<div style={{width:36,height:36,borderRadius:8,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.navy,flexShrink:0}}>L</div>
+{sb&&<div><div style={{fontSize:14,fontWeight:700,color:"#fff"}}>Lihtea</div><div style={{fontSize:9,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}
+</div>
+{/* Nav items */}
+<nav style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+{NAV.map(section=><div key={section.s}>
+{sb&&<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"12px 16px 4px",letterSpacing:"0.1em",textTransform:"uppercase"}}>{section.s}</div>}
+{section.items.map(item=>{const isActive=page===item.id;return<button key={item.id} onClick={()=>sP(item.id)} style={{
+display:"flex",alignItems:"center",gap:12,
+padding:sb?"14px 16px":"14px 12px",
+justifyContent:sb?"flex-start":"center",
+borderRadius:0,border:"none",borderLeft:isActive?"4px solid #2dd4bf":"4px solid transparent",
+cursor:"pointer",width:"100%",
+background:isActive?"linear-gradient(90deg, rgba(13,148,136,0.35) 0%, rgba(13,148,136,0.12) 100%)":"transparent",
+color:isActive?"#ffffff":"rgba(255,255,255,0.5)",
+fontSize:13,fontWeight:isActive?700:500,fontFamily:"inherit",
+transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",whiteSpace:"nowrap",
+boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
+}}>
+<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
+{sb&&<span>{item.l}</span>}
+</button>})}
+</div>)}
+</nav>
+{/* Footer — user + controls */}
+{sb&&user&&<div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.1)",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+<div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
+</div>}
+<div style={{display:"flex",gap:6,padding:"0 12px 12px"}}>
+<button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
+<button onClick={onLogout} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
+</div>
+</div>
+{/* MAIN CONTENT */}
+<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+{/* Header bar — aligned with front-end header-sticky */}
+<div style={{padding:"0 28px",borderBottom:"1px solid "+C.border,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(16px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,height:52}}>
+<span style={{fontSize:17,fontWeight:800,color:C.navy}}>{nav?.i} {nav?.l}</span>
+<div style={{display:"flex",gap:8}}>
+<Badge color={C.green}>Connect\u00e9</Badge>
+<Badge color={C.navy}>v2.0 CRM</Badge>
+</div>
+</div>
+<div style={{flex:1,overflow:"auto",padding:20}}><Pg/></div>
+</div>
+</div>}
 
 // === App ===
 export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else au.clear();sChk(false)}).catch(()=>{au.clear();sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();sS(null)}}/>}
