@@ -489,6 +489,7 @@ function BaremesFinancement() {
   const [grids, setGrids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editGrid, setEditGrid] = useState(null);
+  const [viewMode, setViewMode] = useState(false); // true = lecture seule, false = édition
   const [slabs, setSlabs] = useState([]);
   const [durations, setDurations] = useState([]);
   const [matrix, setMatrix] = useState({});
@@ -515,24 +516,33 @@ function BaremesFinancement() {
 
   useEffect(() => { loadGrids(); }, [loadGrids]);
 
-  const slabKey = (slab, dur) => `${slab.min}-${slab.max ?? ""}-${dur}`;
+  const slabKey = (slab, dur) => `${Math.round(Number(slab.min))}-${slab.max != null ? Math.round(Number(slab.max)) : ""}-${Math.round(Number(dur))}`;
 
-  const openEditor = async grid => {
+  const openEditor = async (grid, readOnly = false) => {
     setEditGrid(grid);
+    setViewMode(readOnly);
     const r = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
     const existing = Array.isArray(r) ? r : [];
     const slabMap = {};
     const durSet = new Set();
     existing.forEach(rule => {
-      const k = `${rule.amount_min}-${rule.amount_max ?? ""}`;
-      slabMap[k] = {min: rule.amount_min, max: rule.amount_max};
-      durSet.add(rule.duration_months);
+      const minN = Math.round(Number(rule.amount_min));
+      const maxN = rule.amount_max != null ? Math.round(Number(rule.amount_max)) : null;
+      const durN = Math.round(Number(rule.duration_months));
+      const k = `${minN}-${maxN ?? ""}`;
+      slabMap[k] = {min: minN, max: maxN};
+      durSet.add(durN);
     });
     const newSlabs = Object.values(slabMap).length > 0 ? Object.values(slabMap)
       : [{min:1500,max:10000},{min:10001,max:30000},{min:30001,max:100000},{min:100001,max:null}];
     const newDurs = durSet.size > 0 ? Array.from(durSet).sort((a,b)=>a-b) : [24,36,48,60];
     const m = {};
-    existing.forEach(rule => { m[slabKey({min:rule.amount_min,max:rule.amount_max}, rule.duration_months)] = rule.annual_rate_pct; });
+    existing.forEach(rule => {
+      const minN = Math.round(Number(rule.amount_min));
+      const maxN = rule.amount_max != null ? Math.round(Number(rule.amount_max)) : null;
+      const durN = Math.round(Number(rule.duration_months));
+      m[slabKey({min: minN, max: maxN}, durN)] = Number(rule.annual_rate_pct);
+    });
     setSlabs(newSlabs); setDurations(newDurs); setMatrix(m); setDirty(false);
   };
 
@@ -605,9 +615,72 @@ function BaremesFinancement() {
   const ST = {draft:{l:"Brouillon",c:C.text3}, active:{l:"Actif",c:C.green}, archived:{l:"Archivé",c:C.text3}};
   const cellSt = {padding:"6px 10px", borderBottom:"1px solid "+C.border, borderRight:"1px solid "+C.border, verticalAlign:"middle"};
 
-  // ── ÉDITEUR MATRICIEL ──
+  // ── ÉDITEUR / VISUALISEUR MATRICIEL ──
   if (editGrid) {
     const coef = (slab, dur) => { const rate=parseFloat(matrix[slabKey(slab,dur)]||0); return rate ? calcCoef(rate,dur) : null; };
+
+    // ── VUE LECTURE SEULE (BNP-style tariff table) ──
+    const ViewTable = () => (
+      <div style={{background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden",marginBottom:16}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.border,background:"linear-gradient(90deg,"+C.navy+"08,transparent)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Grille tarifaire — conditions en vigueur</span>
+            <div style={{fontSize:11,color:C.text3,marginTop:2}}>Taux annuel nominal · Coefficient mensuel (début de période) · Loyer pour 1 000 € financés</div>
+          </div>
+          <div style={{padding:"4px 12px",borderRadius:20,background:C.teal+"15",border:"1px solid "+C.teal+"30",fontSize:11,fontWeight:700,color:C.teal}}>👁 Lecture seule</div>
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:C.navy}}>
+                <th style={{padding:"12px 16px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",minWidth:200}}>Montant financé</th>
+                {durations.map(dur=><th key={dur} style={{padding:"12px 16px",color:"#fff",fontWeight:600,textAlign:"center",fontSize:11,letterSpacing:"0.04em",minWidth:150}}>
+                  {dur} mois
+                </th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {slabs.map((slab,si)=>{
+                const hasAnyRate = durations.some(dur => matrix[slabKey(slab,dur)]);
+                return <tr key={si} style={{background:si%2?C.bg:C.surface,borderBottom:"1px solid "+C.border}}>
+                  <td style={{padding:"12px 16px",fontWeight:700,color:C.navy,borderRight:"2px solid "+C.border+"80",background:si%2?C.navy+"06":C.navy+"03"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:C.navy}}>
+                      {fmt(slab.min)} €
+                      <span style={{color:C.text3,fontWeight:400}}> — </span>
+                      {slab.max ? fmt(slab.max)+" €" : <span style={{fontStyle:"italic",color:C.text3}}>sans limite</span>}
+                    </div>
+                  </td>
+                  {durations.map(dur=>{
+                    const rate = matrix[slabKey(slab,dur)];
+                    const c = rate ? calcCoef(parseFloat(rate), dur) : null;
+                    return <td key={dur} style={{padding:"10px 16px",textAlign:"center",borderRight:"1px solid "+C.border}}>
+                      {rate ? (
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                          <div style={{fontSize:16,fontWeight:800,color:C.navy,fontFamily:"'JetBrains Mono',monospace",lineHeight:1}}>
+                            {parseFloat(rate).toFixed(2)}<span style={{fontSize:11,fontWeight:600,color:C.text3}}> %</span>
+                          </div>
+                          {c&&<div style={{fontSize:13,fontWeight:700,color:C.teal,fontFamily:"'JetBrains Mono',monospace"}}>
+                            {(c*1000).toFixed(2)} <span style={{fontSize:10,color:C.text3}}>€/k€</span>
+                          </div>}
+                          {c&&<div style={{fontSize:10,color:C.text3,fontFamily:"monospace"}}>coef {c.toFixed(6)}</div>}
+                        </div>
+                      ) : <span style={{color:C.border,fontSize:18}}>—</span>}
+                    </td>;
+                  })}
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{padding:"10px 16px",borderTop:"1px solid "+C.border,background:"#f8fafc",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,color:C.text3}}>
+            Calcul mode <strong>BEGIN</strong> (loyer en début de période) · formule : <code style={{background:C.border+"50",padding:"1px 4px",borderRadius:3}}>coef = r / (1−(1+r)^−n) / (1+r)</code>
+          </div>
+          <div style={{fontSize:11,color:C.text3}}>{slabs.length} tranche{slabs.length>1?"s":""} · {durations.length} durée{durations.length>1?"s":""}</div>
+        </div>
+      </div>
+    );
+
     return <div>
       <Toast msg={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -621,10 +694,15 @@ function BaremesFinancement() {
             <div style={{fontSize:12,color:C.text3}}>En vigueur : {fd(editGrid.effective_date)}{editGrid.notes?" — "+editGrid.notes:""}</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          {editGrid.status!=="active"&&<Btn variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(editGrid);}}>✅ Activer</Btn>}
-          {editGrid.status==="active"&&<Btn variant="outline" color={C.orange} onClick={()=>patchGrid(editGrid,{status:"archived"})}>Archiver</Btn>}
-          <Btn color={C.teal} onClick={saveRules} disabled={saving||!dirty}>{saving?"Sauvegarde...":"💾 Sauvegarder"}</Btn>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {viewMode ? (
+            <Btn variant="outline" color={C.blue} onClick={()=>setViewMode(false)}>✏️ Modifier le barème</Btn>
+          ) : (
+            <Btn variant="outline" color={C.text2} onClick={()=>setViewMode(true)}>👁 Mode visualisation</Btn>
+          )}
+          {!viewMode&&editGrid.status!=="active"&&<Btn variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(editGrid);}}>✅ Activer</Btn>}
+          {!viewMode&&editGrid.status==="active"&&<Btn variant="outline" color={C.orange} onClick={()=>patchGrid(editGrid,{status:"archived"})}>Archiver</Btn>}
+          {!viewMode&&<Btn color={C.teal} onClick={saveRules} disabled={saving||!dirty}>{saving?"Sauvegarde...":"💾 Sauvegarder"}</Btn>}
         </div>
       </div>
 
@@ -632,67 +710,69 @@ function BaremesFinancement() {
         🟢 Barème <strong>actif</strong> — conditions appliquées en temps réel dans le simulateur.
       </div>}
 
-      <div style={{background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden",marginBottom:16}}>
-        <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Matrice Tranche × Durée</span>
-          <div style={{display:"flex",gap:8}}>
-            <Btn small variant="outline" color={C.teal} onClick={()=>{setNewDur("");setAddDurModal(true);}}>+ Durée</Btn>
-            <Btn small variant="outline" color={C.navy} onClick={()=>{const last=slabs[slabs.length-1];setSlabs(p=>[...p,{min:(last?.max??last?.min??0)+1,max:null}]);setDirty(true);}}>+ Tranche</Btn>
+      {viewMode ? <ViewTable /> : (
+        <div style={{background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden",marginBottom:16}}>
+          <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Matrice Tranche × Durée</span>
+            <div style={{display:"flex",gap:8}}>
+              <Btn small variant="outline" color={C.teal} onClick={()=>{setNewDur("");setAddDurModal(true);}}>+ Durée</Btn>
+              <Btn small variant="outline" color={C.navy} onClick={()=>{const last=slabs[slabs.length-1];setSlabs(p=>[...p,{min:(last?.max??last?.min??0)+1,max:null}]);setDirty(true);}}>+ Tranche</Btn>
+            </div>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:C.navy}}>
+                  <th style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",minWidth:220}}>Tranche de montant</th>
+                  {durations.map(dur=><th key={dur} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"center",fontSize:11,minWidth:140}}>
+                    {dur} mois{durations.length>1&&<span onClick={()=>{setDurations(p=>p.filter(d=>d!==dur));setDirty(true);}} style={{marginLeft:6,cursor:"pointer",opacity:0.5,fontSize:10}}>✕</span>}
+                  </th>)}
+                  <th style={{width:36}}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {slabs.map((slab,si)=><tr key={si} style={{background:si%2?C.bg:C.surface}}>
+                  <td style={{...cellSt,fontWeight:600,color:C.navy}}>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <input type="number" value={slab.min} onChange={e=>{const v=parseFloat(e.target.value)||0;setSlabs(p=>p.map((s,i)=>i===si?{...s,min:v}:s));setDirty(true);}}
+                        style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
+                      <span style={{color:C.text3,fontSize:10}}>–</span>
+                      <input type="number" value={slab.max??""} placeholder="∞" onChange={e=>{const v=e.target.value?parseFloat(e.target.value):null;setSlabs(p=>p.map((s,i)=>i===si?{...s,max:v}:s));setDirty(true);}}
+                        style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
+                      <span style={{color:C.text3,fontSize:10}}>€</span>
+                    </div>
+                  </td>
+                  {durations.map(dur=>{
+                    const rate=matrix[slabKey(slab,dur)]??"";
+                    const c=coef(slab,dur);
+                    return <td key={dur} style={{...cellSt,textAlign:"center"}}>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                        <div style={{display:"flex",alignItems:"center",gap:2}}>
+                          <input type="number" step="0.01" min="0" max="30" value={rate}
+                            onChange={e=>{setMatrix(p=>({...p,[slabKey(slab,dur)]:e.target.value}));setDirty(true);}}
+                            style={{width:68,padding:"4px 8px",borderRadius:4,border:"1px solid "+(rate?C.teal:C.border),fontSize:12,textAlign:"center",fontWeight:700,background:rate?C.tealBg:"#fff",color:rate?C.teal:C.text2,transition:"all 0.15s"}}
+                            placeholder="0.00"/>
+                          <span style={{fontSize:11,color:C.text3}}>%</span>
+                        </div>
+                        {c&&<div style={{fontSize:10,color:C.teal,fontFamily:"monospace",lineHeight:1.2}}>coef {c.toFixed(6)}</div>}
+                        {c&&<div style={{fontSize:10,color:C.text2,fontWeight:600}}>{(c*1000).toFixed(2)} €/k€</div>}
+                      </div>
+                    </td>;
+                  })}
+                  <td style={{...cellSt,textAlign:"center",borderRight:"none",padding:"0 8px"}}>
+                    {slabs.length>1&&<button onClick={()=>{setSlabs(p=>p.filter((_,i)=>i!==si));setDirty(true);}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>✕</button>}
+                  </td>
+                </tr>)}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead>
-              <tr style={{background:C.navy}}>
-                <th style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",minWidth:220}}>Tranche de montant</th>
-                {durations.map(dur=><th key={dur} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"center",fontSize:11,minWidth:140}}>
-                  {dur} mois{durations.length>1&&<span onClick={()=>{setDurations(p=>p.filter(d=>d!==dur));setDirty(true);}} style={{marginLeft:6,cursor:"pointer",opacity:0.5,fontSize:10}}>✕</span>}
-                </th>)}
-                <th style={{width:36}}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {slabs.map((slab,si)=><tr key={si} style={{background:si%2?C.bg:C.surface}}>
-                <td style={{...cellSt,fontWeight:600,color:C.navy}}>
-                  <div style={{display:"flex",alignItems:"center",gap:4}}>
-                    <input type="number" value={slab.min} onChange={e=>{const v=parseFloat(e.target.value)||0;setSlabs(p=>p.map((s,i)=>i===si?{...s,min:v}:s));setDirty(true);}}
-                      style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
-                    <span style={{color:C.text3,fontSize:10}}>–</span>
-                    <input type="number" value={slab.max??""} placeholder="∞" onChange={e=>{const v=e.target.value?parseFloat(e.target.value):null;setSlabs(p=>p.map((s,i)=>i===si?{...s,max:v}:s));setDirty(true);}}
-                      style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
-                    <span style={{color:C.text3,fontSize:10}}>€</span>
-                  </div>
-                </td>
-                {durations.map(dur=>{
-                  const rate=matrix[slabKey(slab,dur)]??"";
-                  const c=coef(slab,dur);
-                  return <td key={dur} style={{...cellSt,textAlign:"center"}}>
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                      <div style={{display:"flex",alignItems:"center",gap:2}}>
-                        <input type="number" step="0.01" min="0" max="30" value={rate}
-                          onChange={e=>{setMatrix(p=>({...p,[slabKey(slab,dur)]:e.target.value}));setDirty(true);}}
-                          style={{width:68,padding:"4px 8px",borderRadius:4,border:"1px solid "+(rate?C.teal:C.border),fontSize:12,textAlign:"center",fontWeight:700,background:rate?C.tealBg:"#fff",color:rate?C.teal:C.text2,transition:"all 0.15s"}}
-                          placeholder="0.00"/>
-                        <span style={{fontSize:11,color:C.text3}}>%</span>
-                      </div>
-                      {c&&<div style={{fontSize:10,color:C.teal,fontFamily:"monospace",lineHeight:1.2}}>coef {c.toFixed(6)}</div>}
-                      {c&&<div style={{fontSize:10,color:C.text2,fontWeight:600}}>{(c*1000).toFixed(2)} €/k€</div>}
-                    </div>
-                  </td>;
-                })}
-                <td style={{...cellSt,textAlign:"center",borderRight:"none",padding:"0 8px"}}>
-                  {slabs.length>1&&<button onClick={()=>{setSlabs(p=>p.filter((_,i)=>i!==si));setDirty(true);}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>✕</button>}
-                </td>
-              </tr>)}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
 
-      <div style={{padding:"10px 14px",borderRadius:8,background:"#f8fafc",border:"1px solid "+C.border,fontSize:11,color:C.text3,marginBottom:12}}>
+      {!viewMode&&<div style={{padding:"10px 14px",borderRadius:8,background:"#f8fafc",border:"1px solid "+C.border,fontSize:11,color:C.text3,marginBottom:12}}>
         <strong style={{color:C.text2}}>Lecture :</strong> Saisir le taux annuel nominal (%) — le coefficient et le montant €/1 000 € se calculent automatiquement.
         Formule : <code>coef = r / (1 − (1+r)^−n)</code> avec r = taux mensuel, n = durée.
-      </div>
+      </div>}
 
       <Modal open={addDurModal} onClose={()=>setAddDurModal(false)} title="Ajouter une durée">
         <Input label="Durée (mois)" value={newDur} onChange={setNewDur} type="number" placeholder="Ex: 60"/>
@@ -736,7 +816,8 @@ function BaremesFinancement() {
         <div style={{fontSize:11,opacity:.7}}>En vigueur depuis le {fd(activeGrid.effective_date)}</div>
       </div>
       <div style={{display:"flex",gap:8}}>
-        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"#fff"}} onClick={()=>openEditor(activeGrid)}>✏️ Modifier</Btn>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.85)"}} onClick={()=>openEditor(activeGrid,true)}>👁 Visualiser</Btn>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"#fff"}} onClick={()=>openEditor(activeGrid,false)}>✏️ Modifier</Btn>
         <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)"}} onClick={()=>duplicateGrid(activeGrid)}>Dupliquer</Btn>
       </div>
     </div>}
@@ -752,7 +833,8 @@ function BaremesFinancement() {
             <div style={{fontSize:11,color:C.text3}}>Créé {fd(g.created_at)}{g.effective_date?" · En vigueur : "+fd(g.effective_date):""}{g.notes?" · "+g.notes:""}</div>
           </div>
           <div style={{display:"flex",gap:6}}>
-            <Btn small variant="outline" color={C.blue} onClick={()=>openEditor(g)}>✏️ Éditer</Btn>
+            <Btn small variant="outline" color={C.text2} onClick={()=>openEditor(g,true)}>👁 Voir</Btn>
+            <Btn small variant="outline" color={C.blue} onClick={()=>openEditor(g,false)}>✏️ Éditer</Btn>
             {g.status==="draft"&&<Btn small variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(g);}}>Activer</Btn>}
             <Btn small variant="outline" color={C.navy} onClick={()=>duplicateGrid(g)}>Dupliquer</Btn>
             {g.status==="draft"&&<Btn small variant="outline" color={C.red} onClick={()=>setDeleteModal(g)}>🗑</Btn>}
