@@ -374,52 +374,80 @@ function Connecteurs(){
 }
 
 // === Users Management ===
+// Helper : headers authentifiés avec token JWT + anon key
+const apiHeaders=()=>({"Content-Type":"application/json",apikey:AK,...(_tok?{Authorization:"Bearer "+_tok}:{})});
+// Helper : appel Supabase REST avec gestion d'erreur explicite
+const supaRest=async(path,opts={})=>{
+  try{
+    const r=await fetch(SU+"/rest/v1/"+path,{headers:apiHeaders(),...opts});
+    if(!r.ok){const e=await r.json().catch(()=>({message:r.status+" "+r.statusText}));return{error:e?.message||r.status}}
+    return r.status===204?{ok:true}:r.json()
+  }catch(e){return{error:e?.message||"Erreur réseau"}}
+};
+
 function Users(){
-  const[users,sU]=useState([]);const[loading,sL]=useState(true);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[pwModal,sPW]=useState(null);const[newPw,sNPw]=useState("");const[delUser,sDelUser]=useState(null);
-  const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  const load=async()=>{sL(true);const r=await fj(ADM+"/user-stats");sU(r?.data||[]);sL(false)};
+  const[users,sU]=useState([]);const[loading,sL]=useState(true);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[pwModal,sPW]=useState(null);const[newPw,sNPw]=useState("");const[delUser,sDelUser]=useState(null);const[saving,sSaving]=useState(false);
+  const F=(k,v)=>sF(p=>({...p,[k]:v}));
+  const fl=x=>{sT(x);setTimeout(()=>sT(""),4000)};
+  const load=async()=>{sL(true);const r=await fjA(ADM+"/user-stats");sU(r?.data||[]);sL(false)};
   useEffect(()=>{load()},[]);
 
   const createUser=async()=>{
     if(!f.email||!f.password)return;
-    const r=await fj(ADM+"/create-user",{method:"POST",body:JSON.stringify(f)});
-    if(r?.data){fl("Utilisateur créé ✓");sM(null);load()}else{fl("Erreur: "+(r?.error||"Inconnue"))}
+    sSaving(true);
+    const r=await fjA(ADM+"/create-user",{method:"POST",body:JSON.stringify(f)});
+    sSaving(false);
+    if(r?.data){fl("Utilisateur créé ✓");sM(null);load()}else{fl("Erreur: "+(r?.error||r?.message||"Vérifiez email/mot de passe"))}
   };
   const updateUser=async()=>{
-    const{id,...rest}=f;delete rest.total_simulations;delete rest.sim_financees;delete rest.montant_aides;delete rest.total_prospects;delete rest.prospects_gagnes;delete rest.pipeline;delete rest.derniere_sim;delete rest.email_confirmed;delete rest.last_sign_in;delete rest.auth_id;
-    const r=await fj(ADM+"/users/"+id,{method:"PUT",body:JSON.stringify(rest)});
-    if(r?.updated){fl("MAJ ✓");sM(null);load()}
+    const{id,...rest}=f;
+    ["total_simulations","sim_financees","montant_aides","total_prospects","prospects_gagnes","pipeline","derniere_sim","email_confirmed","last_sign_in","auth_id"].forEach(k=>delete rest[k]);
+    sSaving(true);
+    const r=await fjA(ADM+"/users/"+id,{method:"PUT",body:JSON.stringify(rest)});
+    sSaving(false);
+    if(r?.updated){fl("Modifications sauvegardées ✓");sM(null);load()}else{fl("Erreur: "+(r?.error||"Inconnue"))}
   };
   const resetPw=async()=>{
     if(!newPw||newPw.length<6)return;
-    const r=await fj(ADM+"/reset-user-password",{method:"POST",body:JSON.stringify({user_id:pwModal,new_password:newPw})});
+    sSaving(true);
+    const r=await fjA(ADM+"/reset-user-password",{method:"POST",body:JSON.stringify({user_id:pwModal,new_password:newPw})});
+    sSaving(false);
     if(r?.success){fl("Mot de passe réinitialisé ✓");sPW(null);sNPw("")}else{fl("Erreur: "+(r?.error||"Inconnue"))}
   };
   const toggleUser=async(u)=>{
     const endpoint=u.actif?"delete-user":"reactivate-user";
-    const r=await fj(ADM+"/"+endpoint,{method:"POST",body:JSON.stringify({user_id:u.id})});
-    if(r?.success){fl(u.actif?"Désactivé ✓":"Réactivé ✓");load()}
+    const r=await fjA(ADM+"/"+endpoint,{method:"POST",body:JSON.stringify({user_id:u.id})});
+    if(r?.success||r?.ok){fl(u.actif?"Utilisateur désactivé ✓":"Utilisateur réactivé ✓");load()}
+    else{fl("Erreur: "+(r?.error||"Impossible de changer le statut"))}
   };
+
+  // Désactivation utilisateur — meilleure pratique SaaS multi-tenant :
+  // 1) PATCH direct Supabase REST → actif=false (fiable, respecte les RLS)
+  // 2) Fallback → edge function delete-user (désactive aussi auth.users côté Supabase)
+  // Suppression définitive de auth.users = réservée au Super Admin (RGPD)
   const deleteUser=async(u)=>{
-    // Try delete-user endpoint first (soft delete / deactivation)
-    const r=await fj(ADM+"/delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})});
-    if(r&&!r.error){fl("Utilisateur supprimé ✓");load();return}
-    // Fallback: try generic DELETE
-    const r2=await fj(ADM+"/users/"+u.id,{method:"DELETE"});
-    if(r2&&!r2.error){fl("Utilisateur supprimé ✓");load();return}
-    // Fallback: try hard-delete-user
-    const r3=await fj(ADM+"/hard-delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})});
-    if(r3&&!r3.error){fl("Utilisateur supprimé ✓");load();return}
-    fl("Erreur: "+(r?.error||r2?.error||r3?.error||"Inconnue"))
+    sSaving(true);
+    // Étape 1 : soft-delete direct via Supabase REST
+    const r1=await supaRest("users?id=eq."+u.id,{method:"PATCH",headers:{...apiHeaders(),"Prefer":"return=minimal"},body:JSON.stringify({actif:false})});
+    if(r1?.ok||!r1?.error){
+      // Étape 2 : désactiver aussi dans auth.users via edge function (best effort)
+      fjA(ADM+"/delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})}).catch(()=>{});
+      sSaving(false);fl("Utilisateur désactivé ✓");load();return;
+    }
+    // Fallback : edge function seule
+    const r2=await fjA(ADM+"/delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})});
+    if(r2?.success||r2?.ok){sSaving(false);fl("Utilisateur désactivé ✓");load();return}
+    sSaving(false);
+    fl("Erreur: "+(r1?.error||r2?.error||"Droits insuffisants — contactez le Super Admin"));
   };
   const confirmEmail=async(u)=>{
-    const r=await fj(ADM+"/confirm-user-email",{method:"POST",body:JSON.stringify({user_id:u.id})});
-    if(r?.success){fl("Email confirmé ✓");load()}
+    const r=await fjA(ADM+"/confirm-user-email",{method:"POST",body:JSON.stringify({user_id:u.id})});
+    if(r?.success){fl("Email confirmé ✓");load()}else{fl("Erreur: "+(r?.error||"Inconnue"))}
   };
 
   return<div><Toast msg={t}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Utilisateurs</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{users.length} comptes</p></div>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Utilisateurs</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{users.length} compte{users.length>1?"s":""}</p></div>
       <Btn onClick={()=>{sF({email:"",password:"",nom:"",prenom:"",role:"commercial",tenant_id:TID});sM("new")}} color={C.teal}>+ Nouveau</Btn>
     </div>
 
@@ -433,7 +461,7 @@ function Users(){
     <DT loading={loading} data={users} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDelUser(r)} columns={[
       {key:"prenom",label:"Utilisateur",render:(v,r)=><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:14,background:r.actif?C.teal:C.text3,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:700}}>{(r.prenom?.[0]||"")+(r.nom?.[0]||"?")}</div><div><div style={{fontWeight:600}}>{v} {r.nom}</div><div style={{fontSize:10,color:C.text3}}>{r.email}</div></div></div>},
       {key:"role",label:"Rôle",render:v=><Badge color={v==="super_admin"?C.gold:v==="admin"?C.purple:C.teal}>{v}</Badge>},
-      {key:"actif",label:"Statut",render:(v,r)=><div>{v?<Badge color={C.green}>Actif</Badge>:<Badge color={C.red}>Inactif</Badge>}{!r.email_confirmed&&<Badge color={C.orange}>Email non confirmé</Badge>}</div>},
+      {key:"actif",label:"Statut",render:(v,r)=><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{v?<Badge color={C.green}>Actif</Badge>:<Badge color={C.red}>Inactif</Badge>}{!r.email_confirmed&&<Badge color={C.orange}>Email non confirmé</Badge>}</div>},
       {key:"total_simulations",label:"Sims",render:v=><span style={{fontWeight:700,color:C.navy}}>{v}</span>},
       {key:"total_prospects",label:"Prospects",render:v=><span style={{fontWeight:700}}>{v}</span>},
       {key:"montant_aides",label:"Aides",render:v=>v?<span style={{fontWeight:700,color:C.green}}>{fmt(Math.round(v))}€</span>:"—"},
@@ -447,7 +475,7 @@ function Users(){
         <Input label="Nom" value={f.nom||""} onChange={v=>F("nom",v)}/>
         <Input label="Email*" value={f.email||""} onChange={v=>F("email",v)} type="email" disabled={m==="edit"}/>
         {m==="new"&&<Input label="Mot de passe*" value={f.password||""} onChange={v=>F("password",v)} type="password"/>}
-        <Input label="Rôle" value={f.role||"commercial"} onChange={v=>F("role",v)} options={[{value:"commercial",label:"Commercial"},{value:"admin",label:"Admin"},{value:"super_admin",label:"Super Admin"},{value:"manager",label:"Manager"}]}/>
+        <Input label="Rôle" value={f.role||"commercial"} onChange={v=>F("role",v)} options={[{value:"commercial",label:"Commercial"},{value:"admin",label:"Admin"},{value:"manager",label:"Manager"}]}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}>
         <div style={{display:"flex",gap:6}}>
@@ -457,20 +485,31 @@ function Users(){
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn>
-          <Btn color={C.teal} onClick={m==="new"?createUser:updateUser}>{m==="new"?"Créer le compte":"Sauvegarder"}</Btn>
+          <Btn color={C.teal} disabled={saving} onClick={m==="new"?createUser:updateUser}>{saving?"...":(m==="new"?"Créer le compte":"Sauvegarder")}</Btn>
         </div>
       </div>
     </Modal>
 
     {/* Password Reset Modal */}
     <Modal open={!!pwModal} onClose={()=>sPW(null)} title="Réinitialiser le mot de passe">
-      <Input label="Nouveau mot de passe (min 6 car.)" value={newPw} onChange={sNPw} type="password"/>
+      <Input label="Nouveau mot de passe (min. 6 caractères)" value={newPw} onChange={sNPw} type="password"/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}>
         <Btn variant="outline" onClick={()=>sPW(null)}>Annuler</Btn>
-        <Btn color={C.orange} onClick={resetPw}>Réinitialiser</Btn>
+        <Btn color={C.orange} disabled={saving} onClick={resetPw}>{saving?"...":"Réinitialiser"}</Btn>
       </div>
     </Modal>
-    <ConfirmModal open={!!delUser} onClose={()=>sDelUser(null)} title="Supprimer cet utilisateur ?" message={delUser?`Vous êtes sur le point de supprimer ${delUser.prenom} ${delUser.nom} (${delUser.email}). Cette action est irréversible.`:""} icon="👤" onConfirm={async()=>{await deleteUser(delUser);sDelUser(null)}}/>
+
+    {/* Confirm désactivation */}
+    <ConfirmModal
+      open={!!delUser}
+      onClose={()=>sDelUser(null)}
+      title="Désactiver cet utilisateur ?"
+      message={delUser?`${delUser.prenom} ${delUser.nom} (${delUser.email}) n'aura plus accès à la plateforme. Son historique et ses données sont conservés. La suppression définitive est réservée au Super Admin.`:""}
+      icon="🔒"
+      confirmLabel={saving?"...":"Désactiver"}
+      confirmColor={C.orange}
+      onConfirm={async()=>{await deleteUser(delUser);sDelUser(null)}}
+    />
   </div>
 }
 
