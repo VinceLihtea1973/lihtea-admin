@@ -474,37 +474,321 @@ function Users(){
   </div>
 }
 
-// === Taux de Financement ===
-function TauxFin(){
-  const{data,loading,create,update,remove}=useCrud("taux_financement");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);
-  const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  return<div><Toast msg={t}/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Taux de financement</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length} grilles</p></div>
-      <Btn onClick={()=>{sF({tenant_id:TID,label:"",duree_mois:36,taux_annuel:5.0,coefficient:0.029920,actif:true,ordre:data.length+1});sM("new")}} color={C.teal}>+ Ajouter</Btn>
-    </div>
-    <DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[
-      {key:"label",label:"Libellé",render:v=><span style={{fontWeight:600}}>{v}</span>},
-      {key:"duree_mois",label:"Durée",render:v=><span style={{fontWeight:700,color:C.navy}}>{v} mois</span>},
-      {key:"taux_annuel",label:"Taux annuel",render:v=><span style={{fontWeight:700,color:C.teal}}>{Number(v).toFixed(2)}%</span>},
-      {key:"coefficient",label:"Coefficient",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{Number(v).toFixed(6)}</span>},
-      {key:"actif",label:"",render:v=>v?"✅":"❌"}
-    ]}/>
-    <Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau taux":"Modifier"}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
-        <div style={{gridColumn:"1/3"}}><Input label="Libellé*" value={f.label||""} onChange={v=>F("label",v)} placeholder="Ex: 36 mois - 4.8%"/></div>
-        <Input label="Durée (mois)*" value={f.duree_mois||""} onChange={v=>F("duree_mois",parseInt(v)||0)} type="number"/>
-        <Input label="Taux annuel (%)*" value={f.taux_annuel||""} onChange={v=>F("taux_annuel",parseFloat(v)||0)} type="number"/>
-        <Input label="Coefficient" value={f.coefficient||""} onChange={v=>F("coefficient",parseFloat(v)||0)} type="number"/>
-        <Input label="Ordre" value={f.ordre||0} onChange={v=>F("ordre",parseInt(v)||0)} type="number"/>
+// === Moteur de Barèmes de Financement ===
+// Calcul du coefficient mensuel depuis le taux annuel nominal
+// Mode BEGIN (paiement en début de période — standard location financière française)
+// Formule : r = taux/12 | coef_END = r / (1 − (1+r)^−n) | coef_BEGIN = coef_END / (1+r)
+function calcCoef(annualRatePct, durationMonths) {
+  const r = annualRatePct / 100 / 12;
+  if (!r || !durationMonths) return 0;
+  const endCoef = r / (1 - Math.pow(1 + r, -durationMonths));
+  return parseFloat((endCoef / (1 + r)).toFixed(6));
+}
+
+function BaremesFinancement() {
+  const [grids, setGrids] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editGrid, setEditGrid] = useState(null);
+  const [slabs, setSlabs] = useState([]);
+  const [durations, setDurations] = useState([]);
+  const [matrix, setMatrix] = useState({});
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState("");
+  const [activateModal, setActivateModal] = useState(null);
+  const [activateDate, setActivateDate] = useState(new Date().toISOString().split("T")[0]);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [newGridModal, setNewGridModal] = useState(false);
+  const [newGridForm, setNewGridForm] = useState({name:"",effective_date:"",notes:""});
+  const [addDurModal, setAddDurModal] = useState(false);
+  const [newDur, setNewDur] = useState("");
+
+  const flash = msg => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+  const hdr = () => ({"apikey":AK,"Authorization":"Bearer "+(_tok||AK),"Content-Type":"application/json"});
+
+  const loadGrids = useCallback(async () => {
+    setLoading(true);
+    const r = await fj(`${SU}/rest/v1/financing_grids?select=*&order=created_at.desc`, {headers: hdr()});
+    setGrids(Array.isArray(r) ? r : []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadGrids(); }, [loadGrids]);
+
+  const slabKey = (slab, dur) => `${slab.min}-${slab.max ?? ""}-${dur}`;
+
+  const openEditor = async grid => {
+    setEditGrid(grid);
+    const r = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
+    const existing = Array.isArray(r) ? r : [];
+    const slabMap = {};
+    const durSet = new Set();
+    existing.forEach(rule => {
+      const k = `${rule.amount_min}-${rule.amount_max ?? ""}`;
+      slabMap[k] = {min: rule.amount_min, max: rule.amount_max};
+      durSet.add(rule.duration_months);
+    });
+    const newSlabs = Object.values(slabMap).length > 0 ? Object.values(slabMap)
+      : [{min:1500,max:10000},{min:10001,max:30000},{min:30001,max:100000},{min:100001,max:null}];
+    const newDurs = durSet.size > 0 ? Array.from(durSet).sort((a,b)=>a-b) : [24,36,48,60];
+    const m = {};
+    existing.forEach(rule => { m[slabKey({min:rule.amount_min,max:rule.amount_max}, rule.duration_months)] = rule.annual_rate_pct; });
+    setSlabs(newSlabs); setDurations(newDurs); setMatrix(m); setDirty(false);
+  };
+
+  const saveRules = async () => {
+    if (!editGrid) return;
+    setSaving(true);
+    const newRules = [];
+    slabs.forEach(slab => {
+      durations.forEach(dur => {
+        const rate = parseFloat(matrix[slabKey(slab, dur)] || 0);
+        if (rate > 0) newRules.push({
+          grid_id: editGrid.id, amount_min: slab.min, amount_max: slab.max,
+          duration_months: dur, annual_rate_pct: rate, monthly_coefficient: calcCoef(rate, dur)
+        });
+      });
+    });
+    await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${editGrid.id}`, {method:"DELETE", headers: hdr()});
+    if (newRules.length > 0)
+      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body: JSON.stringify(newRules)});
+    setSaving(false); setDirty(false); flash("✓ Barème sauvegardé");
+  };
+
+  const activateGrid = async () => {
+    if (!activateModal) return;
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${activateModal.id}`, {
+      method:"PATCH", headers: hdr(), body: JSON.stringify({status:"active", effective_date: activateDate})
+    });
+    setActivateModal(null);
+    flash("✅ Barème activé — simulateur mis à jour");
+    loadGrids();
+    if (editGrid?.id === activateModal.id) setEditGrid(p=>({...p, status:"active", effective_date: activateDate}));
+  };
+
+  const patchGrid = async (grid, payload) => {
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"PATCH", headers: hdr(), body: JSON.stringify(payload)});
+    loadGrids();
+    if (editGrid?.id === grid.id) setEditGrid(p=>({...p,...payload}));
+  };
+
+  const deleteGrid = async grid => {
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"DELETE", headers: hdr()});
+    setDeleteModal(null); flash("Barème supprimé");
+    if (editGrid?.id === grid.id) setEditGrid(null);
+    loadGrids();
+  };
+
+  const createGrid = async () => {
+    const r = await fetch(`${SU}/rest/v1/financing_grids`, {
+      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+      body: JSON.stringify({name:newGridForm.name, effective_date:newGridForm.effective_date||new Date().toISOString().split("T")[0], notes:newGridForm.notes, status:"draft"})
+    });
+    const [g] = await r.json();
+    if (g?.id) { setNewGridModal(false); flash("Barème créé ✓"); loadGrids(); openEditor(g); }
+  };
+
+  const duplicateGrid = async grid => {
+    const srcRules = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&select=*`, {headers: hdr()});
+    const resp = await fetch(`${SU}/rest/v1/financing_grids`, {
+      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+      body: JSON.stringify({name:grid.name+" (copie)", effective_date:new Date().toISOString().split("T")[0], notes:grid.notes, status:"draft"})
+    });
+    const [newG] = await resp.json();
+    if (newG?.id && srcRules?.length > 0) {
+      const newRules = srcRules.map(({id,grid_id,created_at,...rest})=>({...rest, grid_id:newG.id}));
+      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body:JSON.stringify(newRules)});
+    }
+    flash("Barème dupliqué ✓"); loadGrids();
+  };
+
+  const ST = {draft:{l:"Brouillon",c:C.text3}, active:{l:"Actif",c:C.green}, archived:{l:"Archivé",c:C.text3}};
+  const cellSt = {padding:"6px 10px", borderBottom:"1px solid "+C.border, borderRight:"1px solid "+C.border, verticalAlign:"middle"};
+
+  // ── ÉDITEUR MATRICIEL ──
+  if (editGrid) {
+    const coef = (slab, dur) => { const rate=parseFloat(matrix[slabKey(slab,dur)]||0); return rate ? calcCoef(rate,dur) : null; };
+    return <div>
+      <Toast msg={toast}/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <Btn variant="outline" onClick={()=>{setEditGrid(null);loadGrids();}}>← Barèmes</Btn>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18,fontWeight:800,color:C.navy}}>{editGrid.name}</span>
+              <Badge color={ST[editGrid.status]?.c}>{ST[editGrid.status]?.l}</Badge>
+            </div>
+            <div style={{fontSize:12,color:C.text3}}>En vigueur : {fd(editGrid.effective_date)}{editGrid.notes?" — "+editGrid.notes:""}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {editGrid.status!=="active"&&<Btn variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(editGrid);}}>✅ Activer</Btn>}
+          {editGrid.status==="active"&&<Btn variant="outline" color={C.orange} onClick={()=>patchGrid(editGrid,{status:"archived"})}>Archiver</Btn>}
+          <Btn color={C.teal} onClick={saveRules} disabled={saving||!dirty}>{saving?"Sauvegarde...":"💾 Sauvegarder"}</Btn>
+        </div>
       </div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}>
-        <Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn>
-        <Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn>
+
+      {editGrid.status==="active"&&<div style={{padding:"10px 14px",borderRadius:8,background:C.green+"10",border:"1px solid "+C.green+"30",fontSize:12,color:C.green,marginBottom:16}}>
+        🟢 Barème <strong>actif</strong> — conditions appliquées en temps réel dans le simulateur.
+      </div>}
+
+      <div style={{background:C.surface,borderRadius:12,border:"1px solid "+C.border,overflow:"hidden",marginBottom:16}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Matrice Tranche × Durée</span>
+          <div style={{display:"flex",gap:8}}>
+            <Btn small variant="outline" color={C.teal} onClick={()=>{setNewDur("");setAddDurModal(true);}}>+ Durée</Btn>
+            <Btn small variant="outline" color={C.navy} onClick={()=>{const last=slabs[slabs.length-1];setSlabs(p=>[...p,{min:(last?.max??last?.min??0)+1,max:null}]);setDirty(true);}}>+ Tranche</Btn>
+          </div>
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:C.navy}}>
+                <th style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",minWidth:220}}>Tranche de montant</th>
+                {durations.map(dur=><th key={dur} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"center",fontSize:11,minWidth:140}}>
+                  {dur} mois{durations.length>1&&<span onClick={()=>{setDurations(p=>p.filter(d=>d!==dur));setDirty(true);}} style={{marginLeft:6,cursor:"pointer",opacity:0.5,fontSize:10}}>✕</span>}
+                </th>)}
+                <th style={{width:36}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {slabs.map((slab,si)=><tr key={si} style={{background:si%2?C.bg:C.surface}}>
+                <td style={{...cellSt,fontWeight:600,color:C.navy}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <input type="number" value={slab.min} onChange={e=>{const v=parseFloat(e.target.value)||0;setSlabs(p=>p.map((s,i)=>i===si?{...s,min:v}:s));setDirty(true);}}
+                      style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
+                    <span style={{color:C.text3,fontSize:10}}>–</span>
+                    <input type="number" value={slab.max??""} placeholder="∞" onChange={e=>{const v=e.target.value?parseFloat(e.target.value):null;setSlabs(p=>p.map((s,i)=>i===si?{...s,max:v}:s));setDirty(true);}}
+                      style={{width:82,padding:"3px 6px",borderRadius:4,border:"1px solid "+C.border,fontSize:11,textAlign:"right",fontFamily:"monospace"}}/>
+                    <span style={{color:C.text3,fontSize:10}}>€</span>
+                  </div>
+                </td>
+                {durations.map(dur=>{
+                  const rate=matrix[slabKey(slab,dur)]??"";
+                  const c=coef(slab,dur);
+                  return <td key={dur} style={{...cellSt,textAlign:"center"}}>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{display:"flex",alignItems:"center",gap:2}}>
+                        <input type="number" step="0.01" min="0" max="30" value={rate}
+                          onChange={e=>{setMatrix(p=>({...p,[slabKey(slab,dur)]:e.target.value}));setDirty(true);}}
+                          style={{width:68,padding:"4px 8px",borderRadius:4,border:"1px solid "+(rate?C.teal:C.border),fontSize:12,textAlign:"center",fontWeight:700,background:rate?C.tealBg:"#fff",color:rate?C.teal:C.text2,transition:"all 0.15s"}}
+                          placeholder="0.00"/>
+                        <span style={{fontSize:11,color:C.text3}}>%</span>
+                      </div>
+                      {c&&<div style={{fontSize:10,color:C.teal,fontFamily:"monospace",lineHeight:1.2}}>coef {c.toFixed(6)}</div>}
+                      {c&&<div style={{fontSize:10,color:C.text2,fontWeight:600}}>{(c*1000).toFixed(2)} €/k€</div>}
+                    </div>
+                  </td>;
+                })}
+                <td style={{...cellSt,textAlign:"center",borderRight:"none",padding:"0 8px"}}>
+                  {slabs.length>1&&<button onClick={()=>{setSlabs(p=>p.filter((_,i)=>i!==si));setDirty(true);}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>✕</button>}
+                </td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{padding:"10px 14px",borderRadius:8,background:"#f8fafc",border:"1px solid "+C.border,fontSize:11,color:C.text3,marginBottom:12}}>
+        <strong style={{color:C.text2}}>Lecture :</strong> Saisir le taux annuel nominal (%) — le coefficient et le montant €/1 000 € se calculent automatiquement.
+        Formule : <code>coef = r / (1 − (1+r)^−n)</code> avec r = taux mensuel, n = durée.
+      </div>
+
+      <Modal open={addDurModal} onClose={()=>setAddDurModal(false)} title="Ajouter une durée">
+        <Input label="Durée (mois)" value={newDur} onChange={setNewDur} type="number" placeholder="Ex: 60"/>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12}}>
+          <Btn variant="outline" onClick={()=>setAddDurModal(false)}>Annuler</Btn>
+          <Btn color={C.teal} onClick={()=>{const m=parseInt(newDur);if(m>0&&!durations.includes(m)){setDurations(p=>[...p,m].sort((a,b)=>a-b));setDirty(true);}setAddDurModal(false);setNewDur("");}}>Ajouter</Btn>
+        </div>
+      </Modal>
+
+      <Modal open={!!activateModal} onClose={()=>setActivateModal(null)} title="Activer ce barème">
+        <p style={{fontSize:13,color:C.text2,marginBottom:16}}>Le barème actuellement actif sera automatiquement <strong>archivé</strong>. Les nouvelles conditions s'appliqueront immédiatement dans le simulateur.</p>
+        <Input label="Date d'entrée en vigueur" value={activateDate} onChange={setActivateDate} type="date"/>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+          <Btn variant="outline" onClick={()=>setActivateModal(null)}>Annuler</Btn>
+          <Btn color={C.green} onClick={activateGrid}>✅ Activer ce barème</Btn>
+        </div>
+      </Modal>
+    </div>;
+  }
+
+  // ── VUE LISTE ──
+  const activeGrid = grids.find(g=>g.status==="active");
+  return <div>
+    <Toast msg={toast}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Barèmes de Financement</h2>
+        <p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>
+          Moteur de tarification · {grids.length} version{grids.length>1?"s":""} · {activeGrid?"🟢 Barème actif : "+activeGrid.name:"⚠️ Aucun barème actif — simulateur non fonctionnel"}
+        </p>
+      </div>
+      <Btn color={C.teal} onClick={()=>{setNewGridForm({name:"",effective_date:new Date().toISOString().split("T")[0],notes:""});setNewGridModal(true);}}>+ Nouveau barème</Btn>
+    </div>
+
+    {activeGrid&&<div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          <span style={{fontSize:14,fontWeight:800}}>{activeGrid.name}</span>
+          <span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:"rgba(110,231,183,0.2)",color:"#6ee7b7"}}>ACTIF</span>
+        </div>
+        <div style={{fontSize:11,opacity:.7}}>En vigueur depuis le {fd(activeGrid.effective_date)}</div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"#fff"}} onClick={()=>openEditor(activeGrid)}>✏️ Modifier</Btn>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)"}} onClick={()=>duplicateGrid(activeGrid)}>Dupliquer</Btn>
+      </div>
+    </div>}
+
+    {loading?<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {grids.filter(g=>g.status!=="active").map(g=><div key={g.id} style={{padding:"12px 16px",borderRadius:10,background:C.surface,border:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+              <span style={{fontSize:13,fontWeight:700,color:C.navy}}>{g.name}</span>
+              <Badge color={ST[g.status]?.c}>{ST[g.status]?.l}</Badge>
+            </div>
+            <div style={{fontSize:11,color:C.text3}}>Créé {fd(g.created_at)}{g.effective_date?" · En vigueur : "+fd(g.effective_date):""}{g.notes?" · "+g.notes:""}</div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <Btn small variant="outline" color={C.blue} onClick={()=>openEditor(g)}>✏️ Éditer</Btn>
+            {g.status==="draft"&&<Btn small variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(g);}}>Activer</Btn>}
+            <Btn small variant="outline" color={C.navy} onClick={()=>duplicateGrid(g)}>Dupliquer</Btn>
+            {g.status==="draft"&&<Btn small variant="outline" color={C.red} onClick={()=>setDeleteModal(g)}>🗑</Btn>}
+          </div>
+        </div>)}
+        {grids.length===0&&<div style={{padding:40,textAlign:"center",color:C.text3}}>
+          <div style={{fontSize:28,marginBottom:8}}>📊</div>
+          <div style={{fontWeight:600,marginBottom:4}}>Aucun barème configuré</div>
+          <div style={{fontSize:12}}>Créez votre premier barème pour activer le calculateur de loyers</div>
+        </div>}
+      </div>
+    }
+
+    <Modal open={newGridModal} onClose={()=>setNewGridModal(false)} title="Nouveau barème de financement">
+      <Input label="Nom du barème*" value={newGridForm.name} onChange={v=>setNewGridForm(p=>({...p,name:v}))} placeholder="Ex: Barème Q3 2026"/>
+      <Input label="Date d'entrée en vigueur" value={newGridForm.effective_date} onChange={v=>setNewGridForm(p=>({...p,effective_date:v}))} type="date"/>
+      <Input label="Notes (optionnel)" value={newGridForm.notes} onChange={v=>setNewGridForm(p=>({...p,notes:v}))} placeholder="Ex: Révision haussière +0,5% toutes tranches"/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12}}>
+        <Btn variant="outline" onClick={()=>setNewGridModal(false)}>Annuler</Btn>
+        <Btn color={C.teal} onClick={createGrid} disabled={!newGridForm.name}>Créer et éditer →</Btn>
       </div>
     </Modal>
-    <ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Supprimer ce taux ?" message={del?`Supprimer "${del.label}" (${del.duree_mois} mois) ?`:""} icon="💰" onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/>
-  </div>
+
+    <ConfirmModal open={!!deleteModal} onClose={()=>setDeleteModal(null)} title="Supprimer ce barème ?"
+      message={deleteModal?`Supprimer "${deleteModal.name}" et toutes ses règles ? Action irréversible.`:""}
+      icon="📊" confirmLabel="Supprimer" confirmColor={C.red} onConfirm={()=>deleteGrid(deleteModal)}/>
+
+    <Modal open={!!activateModal&&!editGrid} onClose={()=>setActivateModal(null)} title="Activer ce barème">
+      <p style={{fontSize:13,color:C.text2,marginBottom:16}}>Le barème actuellement actif sera automatiquement <strong>archivé</strong>.</p>
+      <Input label="Date d'entrée en vigueur" value={activateDate} onChange={setActivateDate} type="date"/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+        <Btn variant="outline" onClick={()=>setActivateModal(null)}>Annuler</Btn>
+        <Btn color={C.green} onClick={activateGrid}>✅ Activer ce barème</Btn>
+      </div>
+    </Modal>
+  </div>;
 }
 
 // === Tenant Branding ===
@@ -683,8 +967,8 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
   </div></div>}
 
 // === Layout ===
-const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]},{s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:TauxFin,branding:TenantBranding};const Pg=PG[page]||CRMDash;
+const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},{s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}];
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding};const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
 {/* SIDEBAR — mirrors front-end .sidebar exactly */}
