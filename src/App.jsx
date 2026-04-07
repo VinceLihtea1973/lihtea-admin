@@ -3,12 +3,14 @@ const SU = "https://zjhiwwbabsggzhcfhyqb.supabase.co";
 const AK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqaGl3d2JhYnNnZ3poY2ZoeXFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzQwMzIsImV4cCI6MjA4OTg1MDAzMn0.okmdU-XNarF70eTrrqu4xjNNVrVO-Nd27FUm7sGJ97U";
 const API = `${SU}/functions/v1`;
 const CAT = `${API}/catalogue-api`, ADM = `${API}/admin-api`, CON = `${API}/api-connectors`, AUTH = `${SU}/auth/v1`;
-const TID = "17a567c3-5369-4035-b771-dac26f496d4e";
+const TID = localStorage.getItem("gef_tenant_id") || "17a567c3-5369-4035-b771-dac26f496d4e";
 const C = {navy:"#0f2b46",navyL:"#1a3d5c",teal:"#0d9488",tealB:"#14b8a6",tealBg:"#f0fdfa",gold:"#d4a843",bg:"#f6f8fb",surface:"#fff",border:"#e1e7ef",text:"#1a2332",text2:"#4a5568",text3:"#8896a7",red:"#dc2626",green:"#059669",purple:"#7c3aed",blue:"#2563eb",orange:"#ea580c"};
 const SC = {nouveau:C.blue,qualifie:C.teal,en_discussion:C.orange,proposition:C.purple,negociation:C.gold,gagne:C.green,perdu:C.red,inactif:C.text3};
 const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
 const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
 const fj = async(u,o={})=>{try{return await(await fetch(u,{headers:{"Content-Type":"application/json"},...o})).json()}catch{return null}};
+let _tok = null; // JWT du user connecté — positionné après login, utilisé par fjA
+const fjA = async(u,o={})=>{const h={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};try{return await(await fetch(u,{headers:h,...o})).json()}catch{return null}};
 const fmt = v=>v!=null?Number(v).toLocaleString("fr-FR"):"—";
 const fd = d=>d?new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const fa = d=>{if(!d)return"—";const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+"min";const h=Math.floor(m/60);return h<24?h+"h":Math.floor(h/24)+"j"};
@@ -48,7 +50,7 @@ function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Suppri
     </div>
   </div>
 }
-function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=useCallback(async()=>{sL(true);const x=await fj(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);useEffect(()=>{r()},[r]);return{data:d,loading:l,refresh:r,create:async rec=>{const x=await fj(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},update:async(id,rec)=>{const x=await fj(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},remove:async id=>{const x=await fj(ADM+"/"+t+"/"+id,{method:"DELETE"});if(x&&!x.error){await r();return true}return false}}}
+function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);useEffect(()=>{r()},[r]);return{data:d,loading:l,refresh:r,create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},remove:async id=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"DELETE"});if(x&&!x.error){await r();return true}return false}}}
 
 // === CRM Dashboard ===
 function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
@@ -505,6 +507,114 @@ function TauxFin(){
   </div>
 }
 
+// === Tenant Branding ===
+function TenantBranding(){
+  const[d,sD]=useState(null);
+  const[f,sF]=useState({name:"",tagline:"",logo:"◈",email_support:"",colors:{navy:"#0f2b46",teal:"#0d9488",gold:"#d4a843"},logo_url:""});
+  const[l,sL]=useState(true);const[saving,sSaving]=useState(false);const[t,sT]=useState("");const[err,sErr]=useState("");
+  useEffect(()=>{
+    fj(`${SU}/rest/v1/tenants?id=eq.${TID}&select=*`,{headers:{"apikey":AK,"Authorization":"Bearer "+AK}})
+    .then(r=>{if(r&&r[0]){const row=r[0];const cfg=row.brand_config||{};sD(row);sF({name:cfg.name||row.nom||"",tagline:cfg.tagline||"",logo:cfg.logo||"◈",email_support:row.email_support||"",colors:{navy:cfg.colors?.navy||"#0f2b46",teal:cfg.colors?.teal||"#0d9488",gold:cfg.colors?.gold||"#d4a843"},logo_url:row.logo_url||""})}sL(false)})
+  },[]);
+  const F=(k,v)=>sF(p=>({...p,[k]:v}));
+  const FC=(k,v)=>sF(p=>({...p,colors:{...p.colors,[k]:v}}));
+  const save=async()=>{
+    sSaving(true);sErr("");
+    const brand_config={name:f.name,tagline:f.tagline,logo:f.logo,colors:f.colors};
+    const payload={nom:f.name,email_support:f.email_support,logo_url:f.logo_url,brand_config};
+    const r=await fj(ADM+"/tenants/"+TID,{method:"PUT",body:JSON.stringify(payload)});
+    if(r&&!r.error){sT("✓ Branding sauvegardé");setTimeout(()=>sT(""),3000)}
+    else sErr(r?.error||"Erreur lors de la sauvegarde — vérifiez que admin-api supporte PUT /tenants/:id");
+    sSaving(false);
+  };
+  if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
+  const pv=f.colors;
+  return<div>
+    <Toast msg={t}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Branding & Identité</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>Personnalisez l'apparence de votre espace client</p></div>
+      <Btn color={C.teal} onClick={save} disabled={saving}>{saving?"Sauvegarde...":"💾 Sauvegarder"}</Btn>
+    </div>
+    {err&&<div style={{padding:12,borderRadius:8,background:C.red+"12",color:C.red,fontSize:13,marginBottom:16}}>{err}</div>}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:20,alignItems:"start"}}>
+      {/* Form */}
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:14}}>Identité</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+            <Input label="Nom affiché*" value={f.name} onChange={v=>F("name",v)} placeholder="Ex: Ma Société"/>
+            <Input label="Lettre / symbole logo" value={f.logo} onChange={v=>F("logo",v.slice(0,2))} placeholder="Ex: M ou ◈"/>
+            <div style={{gridColumn:"1/3"}}><Input label="Tagline" value={f.tagline} onChange={v=>F("tagline",v)} placeholder="Ex: Finance & Conseil Vert"/></div>
+            <div style={{gridColumn:"1/3"}}><Input label="Email support" value={f.email_support} onChange={v=>F("email_support",v)} type="email" placeholder="support@masociete.com"/></div>
+            <div style={{gridColumn:"1/3"}}><Input label="URL Logo (image PNG/SVG optionnel)" value={f.logo_url} onChange={v=>F("logo_url",v)} placeholder="https://..."/></div>
+          </div>
+        </div>
+        <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:14}}>Couleurs</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+            {[["navy","Principale","Sidebar, en-têtes"],["teal","Accent","Boutons, actif, liens"],["gold","Highlight","Logo, badges chauds"]].map(([key,label,desc])=>(
+              <div key={key} style={{padding:14,borderRadius:10,border:"1px solid "+C.border,textAlign:"center"}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.text3,textTransform:"uppercase",marginBottom:8}}>{label}</div>
+                <div style={{position:"relative",width:48,height:48,borderRadius:10,background:pv[key],margin:"0 auto 8px",border:"2px solid rgba(0,0,0,0.1)",overflow:"hidden",cursor:"pointer"}}>
+                  <input type="color" value={pv[key]} onChange={e=>FC(key,e.target.value)} style={{position:"absolute",inset:-8,width:"calc(100% + 16px)",height:"calc(100% + 16px)",opacity:0,cursor:"pointer"}}/>
+                </div>
+                <div style={{fontSize:11,fontFamily:"monospace",color:C.text2,marginBottom:4}}>{pv[key]}</div>
+                <div style={{fontSize:10,color:C.text3}}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {d&&<div style={{padding:16,borderRadius:10,background:C.bg,border:"1px solid "+C.border,fontSize:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><span style={{color:C.text3}}>Slug : </span><span style={{fontWeight:700,fontFamily:"monospace"}}>{d.slug}</span></div>
+            <div><span style={{color:C.text3}}>Plan : </span><Badge color={C.teal}>{d.plan||"starter"}</Badge></div>
+            <div style={{fontSize:10}}><span style={{color:C.text3}}>Tenant ID : </span><span style={{fontFamily:"monospace"}}>{d.id}</span></div>
+            <div><span style={{color:C.text3}}>Domaine : </span><span style={{fontFamily:"monospace"}}>{d.domaine||"—"}</span></div>
+          </div>
+        </div>}
+      </div>
+      {/* Live Preview */}
+      <div style={{position:"sticky",top:0}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Aperçu en direct</div>
+        <div style={{borderRadius:14,overflow:"hidden",boxShadow:"0 8px 32px rgba(15,43,70,0.2)",border:"1px solid "+C.border}}>
+          <div style={{background:pv.navy,padding:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
+              {f.logo_url
+                ?<img src={f.logo_url} style={{width:32,height:32,borderRadius:8,objectFit:"cover"}} alt="logo"/>
+                :<div style={{width:32,height:32,borderRadius:8,background:pv.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:pv.navy,flexShrink:0}}>{f.logo||"◈"}</div>}
+              <div><div style={{fontSize:13,fontWeight:700,color:"#fff"}}>{f.name||"Mon Entreprise"}</div><div style={{fontSize:9,color:pv.teal,textTransform:"uppercase",letterSpacing:"0.08em"}}>{f.tagline||"CRM & Admin"}</div></div>
+            </div>
+            {[["📊","Dashboard",true],["👥","Prospects",false],["💰","Taux",false]].map(([icon,label,active],i)=>
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:6,marginBottom:3,background:active?"rgba(255,255,255,0.12)":"transparent",borderLeft:active?"3px solid "+pv.teal:"3px solid transparent"}}>
+                <span style={{fontSize:13,color:active?pv.teal:"rgba(255,255,255,0.4)"}}>{icon}</span>
+                <span style={{fontSize:12,fontWeight:active?700:400,color:active?"#fff":"rgba(255,255,255,0.4)"}}>{label}</span>
+              </div>
+            )}
+          </div>
+          <div style={{background:C.bg,padding:10}}>
+            <div style={{display:"flex",gap:6,marginBottom:8}}>
+              {[pv.navy,pv.teal,pv.gold].map((col,i)=>(
+                <div key={i} style={{flex:1,padding:"7px 4px",borderRadius:6,background:C.surface,border:"1px solid "+C.border,textAlign:"center"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:col}}>12</div>
+                  <div style={{fontSize:9,color:C.text3,marginTop:1}}>Stat {i+1}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{borderRadius:8,background:C.surface,border:"1px solid "+C.border,padding:8}}>
+              <div style={{height:5,borderRadius:3,background:pv.teal+"40",marginBottom:5}}/>
+              <div style={{height:5,borderRadius:3,background:C.border,marginBottom:5,width:"70%"}}/>
+              <div style={{height:5,borderRadius:3,background:C.border,width:"50%"}}/>
+            </div>
+          </div>
+        </div>
+        <div style={{marginTop:10,padding:10,borderRadius:8,background:"#f0fdf4",border:"1px solid "+pv.teal+"30",fontSize:11,color:C.text2,lineHeight:1.5}}>
+          💡 Les couleurs s'appliquent en temps réel au simulateur client après sauvegarde.
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 // === Login ===
 function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useState("");const[p,sP]=useState("");const[n,sN]=useState("");const[err,sErr]=useState("");const[l,sL]=useState(false);const[ok,sOk]=useState("");const[showPw,sShowPw]=useState(false);const[resetMode,sReset]=useState(false);
   const go=async()=>{sErr("");sOk("");sL(true);try{
@@ -517,7 +627,15 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
       const r=await au.signUp(e,p,{nom:n});if(r.error)sErr(r.error.message);else{sOk("Créé! Vérifiez email.");sMode("login")}
     }else{
       if(!e||!p){sErr("Requis");sL(false);return}
-      const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){au.set({access_token:r.access_token,user:r.user});onLogin(r)}
+      const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){
+        // Récupère le tenant_id de cet utilisateur
+        _tok=r.access_token;
+        const ur=await fjA(ADM+"/users?auth_id=eq."+r.user.id).catch(()=>null);
+        const tid=ur?.data?.[0]?.tenant_id;
+        if(tid){localStorage.setItem("gef_tenant_id",tid);}
+        au.set({access_token:r.access_token,user:r.user,tenant_id:tid||TID});
+        onLogin(r);
+      }
     }
   }catch{sErr("Erreur serveur")}sL(false)};
 
@@ -565,8 +683,8 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
   </div></div>}
 
 // === Layout ===
-const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"CATALOGUE",items:[{id:"organismes",l:"Organismes",i:"🏛️"},{id:"connecteurs",l:"Connecteurs",i:"🔗"},{id:"dispositifs",l:"Dispositifs",i:"📋"},{id:"equipements",l:"Équipements",i:"🏭"},{id:"catalogue",l:"Éligibilités",i:"✅"}]},{s:"ADMIN",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]}];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,organismes:Organismes,connecteurs:Connecteurs,dispositifs:Dispositifs,equipements:Equipements,catalogue:Catalogue,users:Users,taux:TauxFin};const Pg=PG[page]||CRMDash;
+const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Taux financement",i:"💰"}]},{s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}];
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:TauxFin,branding:TenantBranding};const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
 {/* SIDEBAR — mirrors front-end .sidebar exactly */}
@@ -621,4 +739,4 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 </div>}
 
 // === App ===
-export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else au.clear();sChk(false)}).catch(()=>{au.clear();sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();sS(null)}}/>}
+export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){_tok=sv.access_token;au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else{au.clear();_tok=null;}sChk(false)}).catch(()=>{au.clear();_tok=null;sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();_tok=null;localStorage.removeItem("gef_tenant_id");sS(null)}}/>}
