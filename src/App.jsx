@@ -10,7 +10,33 @@ const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,
 const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
 const fj = async(u,o={})=>{try{return await(await fetch(u,{headers:{"Content-Type":"application/json"},...o})).json()}catch{return null}};
 let _tok = null; // JWT du user connecté — positionné après login, utilisé par fjA
-const fjA = async(u,o={})=>{const h={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};try{return await(await fetch(u,{headers:h,...o})).json()}catch{return null}};
+let _onUnauth = null; // callback déclenché si 401 non récupérable → logout
+const fjA = async(u,o={})=>{
+  const h={"Content-Type":"application/json",apikey:AK,...(_tok?{Authorization:"Bearer "+_tok}:{})};
+  try{
+    const res=await fetch(u,{headers:h,...o});
+    if(res.status===401&&_tok){
+      // Tenter un refresh token
+      const sess=au.get();
+      if(sess?.refresh_token){
+        const rr=await fetch(`${AUTH}/token?grant_type=refresh_token`,{method:"POST",headers:ah(),body:JSON.stringify({refresh_token:sess.refresh_token})});
+        const rd=await rr.json();
+        if(rd?.access_token){
+          _tok=rd.access_token;
+          au.set({...sess,access_token:rd.access_token,refresh_token:rd.refresh_token||sess.refresh_token});
+          // Rejouer la requête originale avec le nouveau token
+          const h2={"Content-Type":"application/json",apikey:AK,Authorization:"Bearer "+_tok};
+          const res2=await fetch(u,{headers:h2,...o});
+          return res2.status===204?{ok:true}:res2.json().catch(()=>null);
+        }
+      }
+      // Refresh impossible → déconnecter
+      if(_onUnauth) _onUnauth();
+      return null;
+    }
+    return res.status===204?{ok:true}:res.json().catch(()=>null);
+  }catch{return null}
+};
 const fmt = v=>v!=null?Number(v).toLocaleString("fr-FR"):"—";
 const fd = d=>d?new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const fa = d=>{if(!d)return"—";const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+"min";const h=Math.floor(m/60);return h<24?h+"h":Math.floor(h/24)+"j"};
@@ -30,7 +56,7 @@ function Badge({children,color=C.teal}){return<span style={{padding:"2px 8px",bo
 function Btn({children,onClick,color=C.navy,variant="solid",small,disabled,style:sx}){const s=variant==="solid";return<button onClick={onClick} disabled={disabled} style={{padding:small?"5px 10px":"8px 16px",borderRadius:8,border:s?"none":"1px solid "+color+"40",cursor:disabled?"not-allowed":"pointer",background:s?color:"transparent",color:s?"#fff":color,fontSize:small?11:12,fontWeight:600,fontFamily:"inherit",opacity:disabled?.5:1,...sx}}>{children}</button>}
 function Input({label,value,onChange,type="text",placeholder,rows,options,disabled}){const b={padding:"8px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:13,fontFamily:"inherit",background:disabled?C.bg:C.surface,color:C.text,outline:"none",width:"100%",boxSizing:"border-box"};return<div style={{marginBottom:10}}>{label&&<div style={{fontSize:11,fontWeight:600,color:C.text3,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</div>}{options?<select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={b}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:rows?<textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} placeholder={placeholder} disabled={disabled} style={{...b,resize:"vertical"}}/>:<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} disabled={disabled} style={b}/>}</div>}
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
-function Toast({msg}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:200,padding:"10px 20px",borderRadius:10,background:C.green,color:"#fff",fontSize:13,fontWeight:600}}>{msg}</div>}
+function Toast({msg,error}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:300,padding:"10px 20px",borderRadius:10,background:error||msg.startsWith("❌")?C.red:C.green,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:340}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
 function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
 function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon="⚠️"}){
@@ -543,13 +569,17 @@ function BaremesFinancement() {
   const [addDurModal, setAddDurModal] = useState(false);
   const [newDur, setNewDur] = useState("");
 
-  const flash = msg => { setToast(msg); setTimeout(() => setToast(""), 3000); };
-  const hdr = () => ({"apikey":AK,"Authorization":"Bearer "+(_tok||AK),"Content-Type":"application/json"});
+  const flash = (msg, isErr=false) => { setToast(isErr?"❌ "+msg:"✓ "+msg); setTimeout(() => setToast(""), 4000); };
+  // Use apiHeaders() — correct Supabase auth (no AK-as-Bearer fallback)
+  const hdr = () => apiHeaders();
 
   const loadGrids = useCallback(async () => {
     setLoading(true);
-    const r = await fj(`${SU}/rest/v1/financing_grids?select=*&order=created_at.desc`, {headers: hdr()});
-    setGrids(Array.isArray(r) ? r : []);
+    try {
+      const r = await fetch(`${SU}/rest/v1/financing_grids?select=*&order=created_at.desc`, {headers: hdr()});
+      if (!r.ok) { flash("Impossible de charger les barèmes ("+r.status+")", true); setLoading(false); return; }
+      setGrids(await r.json());
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
     setLoading(false);
   }, []);
 
@@ -560,7 +590,8 @@ function BaremesFinancement() {
   const openEditor = async (grid, readOnly = false) => {
     setEditGrid(grid);
     setViewMode(readOnly);
-    const r = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
+    const resp = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
+    const r = resp.ok ? await resp.json() : [];
     const existing = Array.isArray(r) ? r : [];
     const slabMap = {};
     const durSet = new Set();
@@ -588,67 +619,89 @@ function BaremesFinancement() {
   const saveRules = async () => {
     if (!editGrid) return;
     setSaving(true);
-    const newRules = [];
-    slabs.forEach(slab => {
-      durations.forEach(dur => {
-        const rate = parseFloat(matrix[slabKey(slab, dur)] || 0);
-        if (rate > 0) newRules.push({
-          grid_id: editGrid.id, amount_min: slab.min, amount_max: slab.max,
-          duration_months: dur, annual_rate_pct: rate, monthly_coefficient: calcCoef(rate, dur)
+    try {
+      const newRules = [];
+      slabs.forEach(slab => {
+        durations.forEach(dur => {
+          const rate = parseFloat(matrix[slabKey(slab, dur)] || 0);
+          if (rate > 0) newRules.push({
+            grid_id: editGrid.id, amount_min: slab.min, amount_max: slab.max,
+            duration_months: dur, annual_rate_pct: rate, monthly_coefficient: calcCoef(rate, dur)
+          });
         });
       });
-    });
-    await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${editGrid.id}`, {method:"DELETE", headers: hdr()});
-    if (newRules.length > 0)
-      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body: JSON.stringify(newRules)});
-    setSaving(false); setDirty(false); flash("✓ Barème sauvegardé");
+      const r1 = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${editGrid.id}`, {method:"DELETE", headers: hdr()});
+      if (!r1.ok && r1.status !== 204) { flash("Erreur lors de la mise à jour ("+r1.status+")", true); setSaving(false); return; }
+      if (newRules.length > 0) {
+        const r2 = await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body: JSON.stringify(newRules)});
+        if (!r2.ok) { flash("Erreur lors de l'enregistrement des règles ("+r2.status+")", true); setSaving(false); return; }
+      }
+      setDirty(false); flash("Barème sauvegardé");
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    setSaving(false);
   };
 
   const activateGrid = async () => {
     if (!activateModal) return;
-    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${activateModal.id}`, {
-      method:"PATCH", headers: hdr(), body: JSON.stringify({status:"active", effective_date: activateDate})
-    });
-    setActivateModal(null);
-    flash("✅ Barème activé — simulateur mis à jour");
-    loadGrids();
-    if (editGrid?.id === activateModal.id) setEditGrid(p=>({...p, status:"active", effective_date: activateDate}));
+    try {
+      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${activateModal.id}`, {
+        method:"PATCH", headers: hdr(), body: JSON.stringify({status:"active", effective_date: activateDate})
+      });
+      if (!r.ok && r.status !== 204) { flash("Erreur d'activation ("+r.status+")", true); return; }
+      setActivateModal(null);
+      flash("Barème activé — simulateur mis à jour");
+      loadGrids();
+      if (editGrid?.id === activateModal.id) setEditGrid(p=>({...p, status:"active", effective_date: activateDate}));
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
   };
 
   const patchGrid = async (grid, payload) => {
-    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"PATCH", headers: hdr(), body: JSON.stringify(payload)});
-    loadGrids();
-    if (editGrid?.id === grid.id) setEditGrid(p=>({...p,...payload}));
+    try {
+      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"PATCH", headers: hdr(), body: JSON.stringify(payload)});
+      if (!r.ok && r.status !== 204) { flash("Erreur de mise à jour ("+r.status+")", true); return; }
+      loadGrids();
+      if (editGrid?.id === grid.id) setEditGrid(p=>({...p,...payload}));
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
   };
 
   const deleteGrid = async grid => {
-    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"DELETE", headers: hdr()});
-    setDeleteModal(null); flash("Barème supprimé");
-    if (editGrid?.id === grid.id) setEditGrid(null);
-    loadGrids();
+    try {
+      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"DELETE", headers: hdr()});
+      if (!r.ok && r.status !== 204) { flash("Erreur de suppression ("+r.status+")", true); return; }
+      setDeleteModal(null); flash("Barème supprimé");
+      if (editGrid?.id === grid.id) setEditGrid(null);
+      loadGrids();
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
   };
 
   const createGrid = async () => {
-    const r = await fetch(`${SU}/rest/v1/financing_grids`, {
-      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
-      body: JSON.stringify({name:newGridForm.name, effective_date:newGridForm.effective_date||new Date().toISOString().split("T")[0], notes:newGridForm.notes, status:"draft"})
-    });
-    const [g] = await r.json();
-    if (g?.id) { setNewGridModal(false); flash("Barème créé ✓"); loadGrids(); openEditor(g); }
+    try {
+      const r = await fetch(`${SU}/rest/v1/financing_grids`, {
+        method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+        body: JSON.stringify({name:newGridForm.name, effective_date:newGridForm.effective_date||new Date().toISOString().split("T")[0], notes:newGridForm.notes, status:"draft"})
+      });
+      if (!r.ok) { const e=await r.json().catch(()=>({})); flash("Erreur de création : "+(e?.message||r.status), true); return; }
+      const [g] = await r.json();
+      if (g?.id) { setNewGridModal(false); flash("Barème créé"); loadGrids(); openEditor(g); }
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
   };
 
   const duplicateGrid = async grid => {
-    const srcRules = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&select=*`, {headers: hdr()});
-    const resp = await fetch(`${SU}/rest/v1/financing_grids`, {
-      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
-      body: JSON.stringify({name:grid.name+" (copie)", effective_date:new Date().toISOString().split("T")[0], notes:grid.notes, status:"draft"})
-    });
-    const [newG] = await resp.json();
-    if (newG?.id && srcRules?.length > 0) {
-      const newRules = srcRules.map(({id,grid_id,created_at,...rest})=>({...rest, grid_id:newG.id}));
-      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body:JSON.stringify(newRules)});
-    }
-    flash("Barème dupliqué ✓"); loadGrids();
+    try {
+      const srcResp = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&select=*`, {headers: hdr()});
+      const srcRules = srcResp.ok ? await srcResp.json() : [];
+      const resp = await fetch(`${SU}/rest/v1/financing_grids`, {
+        method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+        body: JSON.stringify({name:grid.name+" (copie)", effective_date:new Date().toISOString().split("T")[0], notes:grid.notes, status:"draft"})
+      });
+      if (!resp.ok) { flash("Erreur de duplication ("+resp.status+")", true); return; }
+      const [newG] = await resp.json();
+      if (newG?.id && srcRules?.length > 0) {
+        const newRules = srcRules.map(({id,grid_id,created_at,...rest})=>({...rest, grid_id:newG.id}));
+        await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body:JSON.stringify(newRules)});
+      }
+      flash("Barème dupliqué"); loadGrids();
+    } catch(e) { flash("Erreur réseau : "+e.message, true); }
   };
 
   const ST = {draft:{l:"Brouillon",c:C.text3}, active:{l:"Actif",c:C.green}, archived:{l:"Archivé",c:C.text3}};
@@ -1144,4 +1197,22 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 </div>}
 
 // === App ===
-export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){_tok=sv.access_token;au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else{au.clear();_tok=null;}sChk(false)}).catch(()=>{au.clear();_tok=null;sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();_tok=null;localStorage.removeItem("gef_tenant_id");sS(null)}}/>}
+export default function App(){
+  const[s,sS]=useState(null);const[chk,sChk]=useState(true);
+  const doLogout=()=>{au.clear();_tok=null;_onUnauth=null;localStorage.removeItem("gef_tenant_id");sS(null)};
+  useEffect(()=>{
+    const sv=au.get();
+    if(sv?.access_token){
+      _tok=sv.access_token;
+      _onUnauth=doLogout; // activer l'intercepteur 401
+      au.getUser(sv.access_token).then(u=>{
+        if(u?.id)sS({...sv,user:u});
+        else doLogout();
+        sChk(false);
+      }).catch(()=>{doLogout();sChk(false)});
+    }else sChk(false);
+  },[]);
+  if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;
+  if(!s)return<Login onLogin={r=>{_tok=r.access_token;_onUnauth=doLogout;sS({access_token:r.access_token,user:r.user})}}/>;
+  return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}doLogout()}}/>;
+}
