@@ -59,7 +59,27 @@ function Input({label,value,onChange,type="text",placeholder,rows,options,disabl
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
 function Toast({msg,error}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:300,padding:"10px 20px",borderRadius:10,background:error||msg.startsWith("❌")?C.red:C.green,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:340}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
-function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
+function DT({columns,data,onEdit,onDelete,loading,empty,pageSize=50}){
+  const[pg,setPg]=useState(0);
+  const total=data?.length||0;const pages=Math.ceil(total/pageSize);const slice=(data||[]).slice(pg*pageSize,(pg+1)*pageSize);
+  if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
+  if(!total)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;
+  return<div>
+    <div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead>
+        <tbody>{slice.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody>
+      </table>
+    </div>
+    {pages>1&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 4px",fontSize:12,color:C.text3}}>
+      <span>{pg*pageSize+1}–{Math.min((pg+1)*pageSize,total)} sur {total}</span>
+      <div style={{display:"flex",gap:6}}>
+        <Btn small variant="outline" disabled={pg===0} onClick={()=>setPg(p=>p-1)}>← Précédent</Btn>
+        <Btn small variant="outline" disabled={pg>=pages-1} onClick={()=>setPg(p=>p+1)}>Suivant →</Btn>
+      </div>
+    </div>}
+  </div>
+}
 function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon="⚠️"}){
   if(!open)return null;
   return<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.6)",backdropFilter:"blur(6px)",animation:"cfmIn .2s ease"}} onClick={onClose}>
