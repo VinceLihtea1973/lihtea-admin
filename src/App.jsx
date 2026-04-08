@@ -41,14 +41,15 @@ const fmt = v=>v!=null?Number(v).toLocaleString("fr-FR"):"—";
 const fd = d=>d?new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const fa = d=>{if(!d)return"—";const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+"min";const h=Math.floor(m/60);return h<24?h+"h":Math.floor(h/24)+"j"};
 const ah = t=>({"Content-Type":"application/json",apikey:AK,...(t?{Authorization:`Bearer ${t}`}:{})});
+const SIMUL_URL='https://lihtea.com';
 const au = {
   signIn:async(e,p)=>(await fetch(`${AUTH}/token?grant_type=password`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p})})).json(),
   signUp:async(e,p,d={})=>(await fetch(`${AUTH}/signup`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p,data:d})})).json(),
   getUser:async t=>(await fetch(`${AUTH}/user`,{headers:ah(t)})).json(),
   signOut:async t=>{await fetch(`${AUTH}/logout`,{method:"POST",headers:ah(t)})},
-  get:()=>{try{return JSON.parse(localStorage.getItem("ls"))}catch{return null}},
-  set:s=>localStorage.setItem("ls",JSON.stringify(s)),
-  clear:()=>localStorage.removeItem("ls")
+  get:()=>{try{const ls=JSON.parse(localStorage.getItem("ls"));if(ls?.access_token)return ls;const tok=localStorage.getItem("gef_auth_token");const user=JSON.parse(localStorage.getItem("gef_auth_user")||"null");if(tok&&user)return{access_token:tok,refresh_token:localStorage.getItem("gef_auth_refresh")||"",user};}catch{}return null;},
+  set:s=>{localStorage.setItem("ls",JSON.stringify(s));if(s.access_token)localStorage.setItem("gef_auth_token",s.access_token);if(s.refresh_token)localStorage.setItem("gef_auth_refresh",s.refresh_token);if(s.user)localStorage.setItem("gef_auth_user",JSON.stringify(s.user));},
+  clear:()=>{["ls","gef_auth_token","gef_auth_refresh","gef_auth_user","gef_internal_user_id"].forEach(k=>localStorage.removeItem(k));}
 };
 
 // === UI Components ===
@@ -1249,6 +1250,7 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 </div>}
 <div style={{display:"flex",gap:6,padding:"0 12px 12px"}}>
 <button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
+<button onClick={()=>{const tok=_tok||localStorage.getItem("gef_auth_token")||"";const ref=localStorage.getItem("gef_auth_refresh")||"";window.open(SIMUL_URL+(tok?"?access_token="+encodeURIComponent(tok)+"&refresh_token="+encodeURIComponent(ref):""),"_blank");}} title="Ouvrir le Simulateur Lihtea" style={{padding:"8px 10px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>◈</button>
 <button onClick={onLogout} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
 </div>
 </div>
@@ -1271,6 +1273,18 @@ export default function App(){
   const[s,sS]=useState(null);const[chk,sChk]=useState(true);
   const doLogout=()=>{au.clear();_tok=null;_onUnauth=null;localStorage.removeItem("gef_tenant_id");sS(null)};
   useEffect(()=>{
+    // ── Cross-domain SSO: accept ?access_token= from Simulateur ──
+    const params=new URLSearchParams(window.location.search);
+    const urlTok=params.get("access_token");
+    const urlRef=params.get("refresh_token")||"";
+    if(urlTok){
+      window.history.replaceState({},"",window.location.pathname);
+      au.getUser(urlTok).then(u=>{
+        if(u?.id){const sess={access_token:urlTok,refresh_token:urlRef,user:u};au.set(sess);_tok=urlTok;_onUnauth=doLogout;sS(sess);}
+        sChk(false);
+      }).catch(()=>sChk(false));
+      return;
+    }
     const sv=au.get();
     if(sv?.access_token){
       _tok=sv.access_token;
