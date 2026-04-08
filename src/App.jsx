@@ -194,34 +194,104 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
     </div>})}</div>
     {/* Detail Modal */}
     <Modal open={!!detail} onClose={()=>sD(null)} title={"Simulation — "+(detail?.client_entreprise||detail?.client_nom||"Sans nom")} wide>
-      {detail&&<div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Informations</div>
-            <div style={{fontSize:12,display:"grid",gap:4}}>
-              <div><span style={{color:C.text3}}>Client: </span><span style={{fontWeight:600}}>{detail.client_entreprise||detail.client_nom||"—"}</span></div>
-              <div><span style={{color:C.text3}}>Taille: </span>{detail.client_taille?<Badge color={C.teal}>{detail.client_taille}</Badge>:"—"}</div>
-              <div><span style={{color:C.text3}}>Équipement: </span>{detail.parametres?.equipement_label||"—"}</div>
-              <div><span style={{color:C.text3}}>Créée: </span>{fd(detail.created_at)}</div>
-              <div><span style={{color:C.text3}}>Notes: </span>{detail.notes||"—"}</div>
+      {detail&&(()=>{
+        // ── Calculs dérivés ──
+        const inv    = Number(detail.parametres?.investissement) || 0;
+        const duree  = Number(detail.parametres?.duree_ans) || 0;
+        const taux   = Number(detail.parametres?.taux) || 0;
+        const aides  = Number(detail.montant_aides_total) || Number(detail.resultats?.total_aides) || 0;
+        const coutNet = Number(detail.resultats?.cout_net) || Math.max(0, inv - aides);
+        const pctCouvert = inv > 0 ? Math.round(aides / inv * 100) : 0;
+
+        // Loyer : valeur stockée en priorité, sinon recalcul depuis params
+        const loyerStocke = Number(detail.montant_loyer_mensuel) || Number(detail.resultats?.mensualite_nette) || 0;
+        const loyerCalc = (() => {
+          if (loyerStocke > 0) return loyerStocke;
+          if (coutNet > 0 && duree > 0) {
+            const r = taux / 100 / 12;
+            const n = duree * 12;
+            if (r === 0) return coutNet / n;
+            return coutNet * r / (1 - Math.pow(1 + r, -n));
+          }
+          return 0;
+        })();
+        const loyerIsEstim = loyerStocke === 0 && loyerCalc > 0;
+
+        // Gain : valeur stockée ou résultats
+        const gain = Number(detail.gain_net_annuel) || Number(detail.resultats?.economie_annuelle) || Number(detail.resultats?.gain_annuel) || 0;
+        const gainMensuel = gain > 0 ? Math.round(gain / 12) : 0;
+        const solde = loyerCalc > 0 && gainMensuel > 0 ? Math.round(gainMensuel - loyerCalc) : null;
+
+        return <div>
+          {/* ── Bande métriques clés ── */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
+            {[
+              {label:"Investissement", val:fmt(inv)+"€", color:C.navy, sub:null},
+              {label:"Aides totales",  val:"-"+fmt(aides)+"€", color:C.green, sub:pctCouvert+"%  couvert"},
+              {label:"Capital financé",val:fmt(Math.round(coutNet))+"€", color:C.navy, sub:null},
+              {label:"Loyer mensuel",  val:fmt(Math.round(loyerCalc))+"€/m", color:loyerCalc>0?C.purple:"#94a3b8",
+               sub:loyerIsEstim?"estimé · "+duree+" ans · "+taux+"%":duree+"  ans · "+taux+"%"},
+            ].map(({label,val,color,sub})=>(
+              <div key={label} style={{padding:"10px 12px",borderRadius:10,background:C.bg,border:"1px solid "+C.border,textAlign:"center"}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:15,fontWeight:800,color,fontFamily:"var(--font-mono,'monospace')"}}>{val}</div>
+                {sub&&<div style={{fontSize:9,color:C.text3,marginTop:3}}>{sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* ── Gain + solde ── */}
+          {gain > 0 && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              <div style={{padding:"10px 14px",borderRadius:10,background:"#ecfdf5",border:"1px solid #6ee7b7",display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:18}}>⚡</div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#059669",textTransform:"uppercase",letterSpacing:"0.06em"}}>Gain énergie annuel</div>
+                  <div style={{fontSize:16,fontWeight:800,color:"#059669"}}>{fmt(gain)} €/an <span style={{fontSize:11,fontWeight:600,opacity:.7}}>({fmt(gainMensuel)}€/mois)</span></div>
+                </div>
+              </div>
+              <div style={{padding:"10px 14px",borderRadius:10,background:solde!==null&&solde>=0?"#ecfdf5":solde!==null?"#fef2f2":C.bg,border:"1px solid "+(solde!==null&&solde>=0?"#6ee7b7":solde!==null?"#fca5a5":C.border),display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:18}}>{solde!==null&&solde>=0?"✔":"↔"}</div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:solde!==null&&solde>=0?"#059669":solde!==null?"#dc2626":C.text3,textTransform:"uppercase",letterSpacing:"0.06em"}}>Effort réel / mois</div>
+                  <div style={{fontSize:16,fontWeight:800,color:solde!==null&&solde>=0?"#059669":solde!==null?"#dc2626":C.text2}}>
+                    {solde!==null ? (solde>=0?"+":"")+fmt(solde)+" €" : "—"}
+                  </div>
+                  {solde!==null&&<div style={{fontSize:9,color:C.text3,marginTop:1}}>gains − loyer</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Infos + statut ── */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+            <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Informations</div>
+              <div style={{fontSize:12,display:"grid",gap:4}}>
+                <div><span style={{color:C.text3}}>Client: </span><span style={{fontWeight:600}}>{detail.client_entreprise||detail.client_nom||"—"}</span></div>
+                <div><span style={{color:C.text3}}>Taille: </span>{detail.client_taille?<Badge color={C.teal}>{detail.client_taille}</Badge>:"—"}</div>
+                <div><span style={{color:C.text3}}>Équipement: </span><span style={{fontWeight:500}}>{detail.parametres?.equipement_label||"—"}</span></div>
+                <div><span style={{color:C.text3}}>Créée: </span>{fd(detail.created_at)}</div>
+                {detail.notes&&<div><span style={{color:C.text3}}>Notes: </span>{detail.notes}</div>}
+              </div>
+            </div>
+            <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Paramètres</div>
+              <div style={{fontSize:12,display:"grid",gap:4}}>
+                <div><span style={{color:C.text3}}>Consommation: </span><span style={{fontWeight:600}}>{detail.parametres?.consommation ? fmt(detail.parametres.consommation)+" MWh/an" : "—"}</span></div>
+                <div><span style={{color:C.text3}}>Durée: </span><span style={{fontWeight:600}}>{duree ? duree+" ans" : "—"}</span></div>
+                <div><span style={{color:C.text3}}>Taux: </span><span style={{fontWeight:600}}>{taux ? taux+"%" : "—"}</span></div>
+                <div><span style={{color:C.text3}}>Aides couvertes: </span><span style={{fontWeight:600,color:C.green}}>{pctCouvert}%</span></div>
+              </div>
             </div>
           </div>
-          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Résultats financiers</div>
-            <div style={{fontSize:12,display:"grid",gap:4}}>
-              <div><span style={{color:C.text3}}>Investissement: </span><span style={{fontWeight:700,color:C.navy}}>{fmt(detail.parametres?.investissement||0)}€</span></div>
-              <div><span style={{color:C.text3}}>Total aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(detail.montant_aides_total||detail.resultats?.total_aides||0)}€</span></div>
-              <div><span style={{color:C.text3}}>Loyer mensuel: </span><span style={{fontWeight:700}}>{fmt(detail.montant_loyer_mensuel||detail.resultats?.mensualite_nette||detail.resultats?.loyer_mensuel||detail.resultats?.mensualite||0)}€</span></div>
-              <div><span style={{color:C.text3}}>Gain annuel: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(detail.gain_net_annuel||detail.resultats?.economie_annuelle||detail.resultats?.gain_annuel||detail.resultats?.gain_net||0)}€</span></div>
-              <div><span style={{color:C.text3}}>Durée: </span>{detail.parametres?.duree_ans||"—"} ans — Taux: {detail.parametres?.taux||"—"}%</div>
-            </div>
+
+          <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Changer le statut</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
           </div>
-        </div>
-        <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Changer le statut</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
-        </div>
-      </div>}
+        </div>;
+      })()}
     </Modal>
   </div>}
 
