@@ -1158,7 +1158,7 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
       const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){
         // Récupère le tenant_id de cet utilisateur
         _tok=r.access_token;
-        const ur=await fjA(ADM+"/users?auth_id=eq."+r.user.id).catch(()=>null);
+        const ur=await fjA(ADM+"/users?auth_id="+r.user.id).catch(()=>null);
         const tid=ur?.data?.[0]?.tenant_id;
         if(tid){localStorage.setItem("gef_tenant_id",tid);}
         au.set({access_token:r.access_token,user:r.user,tenant_id:tid||TID});
