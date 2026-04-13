@@ -41,7 +41,7 @@ const fmt = v=>v!=null?Number(v).toLocaleString("fr-FR"):"—";
 const fd = d=>d?new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const fa = d=>{if(!d)return"—";const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+"min";const h=Math.floor(m/60);return h<24?h+"h":Math.floor(h/24)+"j"};
 const ah = t=>({"Content-Type":"application/json",apikey:AK,...(t?{Authorization:`Bearer ${t}`}:{})});
-const SIMUL_URL='https://lihtea.com';
+const SIMUL_URL='https://simulateur-gef.vercel.app';
 const au = {
   signIn:async(e,p)=>(await fetch(`${AUTH}/token?grant_type=password`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p})})).json(),
   signUp:async(e,p,d={})=>(await fetch(`${AUTH}/signup`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p,data:d})})).json(),
