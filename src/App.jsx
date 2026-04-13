@@ -105,7 +105,7 @@ function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[fee
 // === Prospects ===
 function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const[sims,sSims]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[detail,sDetail]=useState(null);const[delTarget,sDelTarget]=useState(null);
   const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  useEffect(()=>{fj(ADM+"/simulations").then(r=>sSims(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+  useEffect(()=>{fjA(ADM+"/simulations").then(r=>sSims(r?.data||[]));fjA(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
   const lookup=async()=>{if(!f.siret||f.siret.replace(/\s/g,"").length!==14)return;sSL(true);const r=await fj(CON+"/siret?siret="+f.siret.replace(/\s/g,""));if(r?.data){const d=r.data;sF(p=>({...p,raison_sociale:d.raison_sociale||p.raison_sociale,siren:d.siren,code_naf:d.code_naf,libelle_naf:d.libelle_naf,taille:d.taille_calculee,effectifs:d.effectifs,adresse:d.adresse,code_postal:d.code_postal,ville:d.ville,region:d.region}))}sSL(false)};
   // Enrich prospects with simulation counts
   const enriched=data.map(p=>{const pSims=sims.filter(s=>s.prospect_id===p.id);return{...p,nb_sims:pSims.length,nb_offres:pSims.filter(s=>s.statut!=="brouillon").length,total_invest:pSims.reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0)}});
@@ -323,7 +323,7 @@ function Activites(){
   const[ps,sPS]=useState([]);const[users,sUsers]=useState([]);
   const[uf,sUF]=useState("");const[cat,sCat]=useState("all");
   const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  useEffect(()=>{fj(ADM+"/prospects").then(r=>sPS(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+  useEffect(()=>{fjA(ADM+"/prospects").then(r=>sPS(r?.data||[]));fjA(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
 
   const TI={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
   const CATS={commercial:["appel","email","rdv","visite","relance"],business:["proposition","signature"],system:["note","tache"]};
@@ -1071,7 +1071,7 @@ function TenantBranding(){
     sSaving(true);sErr("");
     const brand_config={name:f.name,tagline:f.tagline,logo:f.logo,colors:f.colors};
     const payload={nom:f.name,email_support:f.email_support,logo_url:f.logo_url,brand_config};
-    const r=await fj(ADM+"/tenants/"+TID,{method:"PUT",body:JSON.stringify(payload)});
+    const r=await fjA(ADM+"/tenants/"+TID,{method:"PUT",body:JSON.stringify(payload)});
     if(r&&!r.error){sT("✓ Branding sauvegardé");setTimeout(()=>sT(""),3000)}
     else sErr(r?.error||"Erreur lors de la sauvegarde — vérifiez que admin-api supporte PUT /tenants/:id");
     sSaving(false);
@@ -1232,8 +1232,8 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
   </div></div>}
 
 // === Layout ===
-const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},{s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]},{s:"RÉFÉRENTIEL",items:[{id:"organismes",l:"Organismes",i:"🏛️"},{id:"dispositifs",l:"Dispositifs",i:"📋"},{id:"catalogue",l:"Catalogue",i:"✅"},{id:"connecteurs",l:"Connecteurs",i:"🔗"}]}];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding,organismes:Organismes,dispositifs:Dispositifs,catalogue:Catalogue,connecteurs:Connecteurs};const Pg=PG[page]||CRMDash;
+const NAV=[{s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},{s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},{s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}];
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding};const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
 {/* SIDEBAR — mirrors front-end .sidebar exactly */}
