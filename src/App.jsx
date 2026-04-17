@@ -1442,8 +1442,8 @@ transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",whiteSpace:"nowrap",
 boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 }}>
 <span style={{fontSize:16,flexShrink:0,filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
-{sb&&<span style={{flex:1}}>{item.l}</span>}
-{sb&&item.id==="supervision"&&supervisionCount>0&&<span style={{minWidth:18,height:18,padding:"0 5px",borderRadius:9,background:"#dc2626",color:"#fff",fontSize:10,fontWeight:700,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{supervisionCount}</span>}
+{sb&&<span>{item.l}</span>}
+{sb&&item.id==="supervision"&&supervisionCount>0&&<span style={{marginLeft:"auto",minWidth:18,height:18,padding:"0 5px",borderRadius:9,background:"#dc2626",color:"#fff",fontSize:10,fontWeight:700,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{supervisionCount}</span>}
 </button>})}
 </div>)}
 </nav>
