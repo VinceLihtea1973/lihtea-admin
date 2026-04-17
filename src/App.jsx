@@ -1359,116 +1359,16 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
     </div>
   </div></div>}
 
-// === Supervision ===
-const ADMIN_STATUT_COLOR={en_attente:C.amber,en_cours_revue:C.blue,valide:C.green,rejete:C.red};
-const ADMIN_STATUT_LABEL={en_attente:'En attente',en_cours_revue:'En cours de revue',valide:'Validé',rejete:'Rejeté'};
-const PROSPECT_STATUT_COLOR={nouveau:'#3b82f6',qualifie:'#0d9488',en_discussion:'#ea580c',proposition:'#7c3aed',negociation:'#d97706',dossier_depose:'#f59e0b',gagne:'#059669',perdu:'#dc2626',inactif:'#6b7280'};
-const PROSPECT_STATUT_LABEL={nouveau:'Nouveau',qualifie:'Qualifié',en_discussion:'En discussion',proposition:'Proposition',negociation:'Négociation',dossier_depose:'Dossier déposé',gagne:'Gagné',perdu:'Perdu',inactif:'Inactif'};
-
-function Supervision(){
-  const[dossiers,sD]=useState([]);const[loading,sL]=useState(true);const[filter,sF]=useState('en_attente');const[selected,sSel]=useState(null);const[notes,sNotes]=useState('');const[saving,sSaving]=useState(false);const{toastMsg,toastErr,toast}=useToast();
-
-  const load=async()=>{sL(true);const r=await fjA(ADM+'/supervision'+(filter?'?admin_statut='+filter:''));sD(r?.data||[]);sL(false)};
-  useEffect(()=>{load()},[filter]);
-
-  const fek=n=>n>=1e6?(n/1e6).toFixed(1)+' M€':n>=1000?Math.round(n/1000)+' k€':Math.round(n||0)+'€';
-  const fd2=d=>d?new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—';
-
-  const doAction=async(id,action)=>{
-    sSaving(true);
-    const r=await fjA(ADM+'/supervision/'+id+'/'+action,{method:'POST',body:JSON.stringify({notes})});
-    if(r?.validated||r?.rejected){
-      toast(action==='validate'?'✅ Dossier validé':'❌ Dossier rejeté',action!=='validate');
-      sSel(null);sNotes('');load();
-    }else toast('Erreur : '+(r?.error||'inconnue'),true);
-    sSaving(false);
-  };
-
-  const counts=dossiers.length;
-
-  return<div>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
-      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>🔍 Supervision Dossiers</h2>
-        <p style={{fontSize:13,color:C.text3,margin:'4px 0 0'}}>Dossiers soumis par les commerciaux — en attente de validation</p></div>
-      <div style={{display:'flex',gap:8,alignItems:'center'}}>
-        {counts>0&&<Badge color={C.amber}>{counts} dossier{counts>1?'s':''}</Badge>}
-        <select value={filter} onChange={e=>sF(e.target.value)} style={{padding:'7px 12px',borderRadius:8,border:'1px solid '+C.border,fontSize:12,fontFamily:'inherit'}}>
-          <option value='en_attente'>En attente</option>
-          <option value='en_cours_revue'>En cours de revue</option>
-          <option value=''>Tous</option>
-          <option value='valide'>Validés</option>
-          <option value='rejete'>Rejetés</option>
-        </select>
-        <Btn small variant="outline" color={C.navy} onClick={load}>↻ Actualiser</Btn>
-      </div>
-    </div>
-    <Toast msg={toastMsg} error={toastErr}/>
-    {loading?<div style={{padding:40,textAlign:'center',color:C.text3}}>Chargement…</div>:
-     dossiers.length===0?<EmptyState icon="✅" title="Aucun dossier" sub={filter==='en_attente'?'Aucun dossier en attente de validation.':'Aucun dossier dans cette catégorie.'}/>:
-    <div style={{display:'flex',gap:16}}>
-      {/* Liste */}
-      <div style={{flex:1}}>
-        {dossiers.map(d=>{
-          const sc=PROSPECT_STATUT_COLOR[d.statut]||C.text3;
-          const asc=ADMIN_STATUT_COLOR[d.admin_statut]||C.text3;
-          const commercial=d.users;
-          return<div key={d.id} onClick={()=>{sSel(d);sNotes(d.admin_notes||'')}}
-            style={{padding:'14px 16px',borderRadius:10,border:'2px solid '+(selected?.id===d.id?C.teal:C.border),background:C.surface,marginBottom:8,cursor:'pointer',transition:'border-color .15s'}}>
-            <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
-              <div style={{width:36,height:36,borderRadius:8,background:sc+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:sc,flexShrink:0}}>{(d.raison_sociale||'?')[0]}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,color:C.navy,fontSize:13,marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{d.raison_sociale||'—'}</div>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                  <Badge color={sc}>{PROSPECT_STATUT_LABEL[d.statut]||d.statut}</Badge>
-                  {d.admin_statut&&<Badge color={asc}>{ADMIN_STATUT_LABEL[d.admin_statut]||d.admin_statut}</Badge>}
-                  {d.ville&&<span style={{fontSize:11,color:C.text3}}>📍 {d.ville}</span>}
-                  {d.siren&&<span style={{fontSize:11,color:C.text3,fontFamily:'monospace'}}>{d.siren}</span>}
-                </div>
-                {commercial&&<div style={{fontSize:11,color:C.text3,marginTop:4}}>👤 {commercial.prenom} {commercial.nom} — {commercial.email}</div>}
-              </div>
-              <div style={{textAlign:'right',flexShrink:0}}>
-                {d.nb_simulations>0&&<div style={{fontSize:12,fontWeight:600,color:C.navy}}>{d.nb_simulations} sim{d.nb_simulations>1?'s':''}</div>}
-                <div style={{fontSize:11,color:C.text3,marginTop:2}}>{d.review_triggered_at?fd2(d.review_triggered_at):'—'}</div>
-              </div>
-            </div>
-          </div>;
-        })}
-      </div>
-      {/* Panneau de validation */}
-      {selected&&<div style={{width:320,flexShrink:0}}>
-        <Card style={{position:'sticky',top:0}}>
-          <div style={{fontWeight:700,color:C.navy,fontSize:14,marginBottom:12}}>Dossier : {selected.raison_sociale}</div>
-          {selected.review_reason&&<div style={{padding:'8px 10px',borderRadius:6,background:C.amber+'12',border:'1px solid '+C.amber+'30',fontSize:12,color:C.text2,marginBottom:12}}><strong>Motif :</strong> {selected.review_reason}</div>}
-          <div style={{fontSize:12,color:C.text3,marginBottom:6}}>SIREN : {selected.siren||'—'} · {selected.ville||'—'}</div>
-          <div style={{fontSize:12,color:C.text3,marginBottom:12}}>Soumis le {selected.review_triggered_at?fd2(selected.review_triggered_at):'—'}</div>
-          <div style={{fontSize:12,fontWeight:600,marginBottom:6,color:C.navy}}>Notes Admin</div>
-          <textarea value={notes} onChange={e=>sNotes(e.target.value)} rows={3} placeholder="Commentaire (optionnel)…" style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1px solid '+C.border,fontSize:12,fontFamily:'inherit',resize:'vertical',boxSizing:'border-box',marginBottom:12}}/>
-          <div style={{display:'flex',gap:8}}>
-            <Btn color={C.green} disabled={saving} onClick={()=>doAction(selected.id,'validate')} style={{flex:1}}>✅ Valider</Btn>
-            <Btn color={C.red} variant="outline" disabled={saving} onClick={()=>doAction(selected.id,'reject')} style={{flex:1}}>❌ Rejeter</Btn>
-          </div>
-          <Btn small variant="outline" color={C.text3} onClick={()=>sSel(null)} style={{width:'100%',marginTop:8}}>Fermer</Btn>
-        </Card>
-      </div>}
-    </div>}
-  </div>
-}
-
 // === Layout ===
 const NAV=[
   {s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},
-  {s:"SUPERVISION",items:[{id:"supervision",l:"Supervision",i:"🔍"}]},
   {s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},
   {s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}
 ];
 function Layout({user,onLogout}){
   const[page,sP]=useState("crm");const[sb,sSb]=useState(true);
-  const[supervisionCount,sSC]=useState(0);
-  useEffect(()=>{
-    fjA(ADM+"/supervision?admin_statut=en_attente").then(r=>{sSC(r?.count||0)});
-  },[]);
   const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);
-  const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding,supervision:Supervision};
+  const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding};
   const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
@@ -1497,7 +1397,6 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 }}>
 <span style={{fontSize:16,flexShrink:0,filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
 {sb&&<span>{item.l}</span>}
-{sb&&item.id==="supervision"&&supervisionCount>0&&<span style={{marginLeft:"auto",minWidth:18,height:18,padding:"0 5px",borderRadius:9,background:"#dc2626",color:"#fff",fontSize:10,fontWeight:700,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{supervisionCount}</span>}
 </button>})}
 </div>)}
 </nav>
