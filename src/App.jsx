@@ -1344,8 +1344,8 @@ function Layout({user,onLogout}){
   const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
-{/* SIDEBAR — mirrors front-end .sidebar exactly */}
-<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)"}}>
+{/* SIDEBAR — fixed height, sticky, overflow hidden */}
+<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)",height:"100vh",overflow:"hidden",position:"sticky",top:0}}>
 {/* Header — logo block */}
 <div style={{padding:sb?"20px 16px":"20px 12px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
 <div style={{width:36,height:36,borderRadius:8,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.navy,flexShrink:0}}>L</div>
@@ -1373,14 +1373,15 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 </button>})}
 </div>)}
 </nav>
-{/* Footer — user + controls */}
-{sb&&user&&<div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.1)",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+{/* Footer — user info + controls, pinned at bottom */}
+<div style={{flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
+{sb&&user&&<div style={{padding:"10px 16px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
 <div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
 </div>}
-<div style={{display:"flex",gap:6,padding:"0 12px 12px"}}>
-<button onClick={()=>sSb(p=>!p)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
-<button onClick={()=>{const tok=_tok||localStorage.getItem("gef_auth_token")||"";const ref=localStorage.getItem("gef_auth_refresh")||"";window.open(SIMUL_URL+(tok?"?access_token="+encodeURIComponent(tok)+"&refresh_token="+encodeURIComponent(ref):""),"_blank");}} title="Ouvrir le Simulateur Lihtea" style={{padding:"8px 10px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>◈</button>
-<button onClick={onLogout} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
+<div style={{display:"flex",gap:6,padding:sb?"4px 12px 12px":"8px 12px 12px"}}>
+<button onClick={()=>sSb(p=>!p)} title={sb?"Réduire le menu":"Agrandir"} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
+<button onClick={onLogout} title="Déconnexion" style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
+</div>
 </div>
 </div>
 {/* MAIN CONTENT */}
