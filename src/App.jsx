@@ -59,6 +59,7 @@ function Input({label,value,onChange,type="text",placeholder,rows,options,disabl
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
 function Toast({msg,error}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:300,padding:"10px 20px",borderRadius:10,background:error||msg.startsWith("❌")?C.red:C.green,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:340}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
+function KPICard({icon,value,label,sub,color=C.navy,iconBg}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,borderLeft:"4px solid "+color,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}><div style={{minWidth:0}}><div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{label}</div><div style={{fontSize:22,fontWeight:800,color,lineHeight:1.1,marginBottom:2}}>{value??"—"}</div>{sub&&<div style={{fontSize:11,color:C.text3}}>{sub}</div>}</div><div style={{width:42,height:42,borderRadius:10,background:iconBg||color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{icon}</div></div>}
 function DT({columns,data,onEdit,onDelete,loading,empty,pageSize=50}){
   const[pg,setPg]=useState(0);
   const total=data?.length||0;const pages=Math.ceil(total/pageSize);const slice=(data||[]).slice(pg*pageSize,(pg+1)*pageSize);
@@ -100,7 +101,80 @@ function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Suppri
 function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);useEffect(()=>{r()},[r]);return{data:d,loading:l,refresh:r,create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},remove:async id=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"DELETE"});if(x&&!x.error){await r();return true}return false}}}
 
 // === CRM Dashboard ===
-function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fjA(ADM+"/user-stats").then(r=>sU(r?.data||[]));fjA(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fjA(CAT+"/stats").then(sCS);fjA(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
+function CRMDash(){
+  const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);
+  useEffect(()=>{
+    fjA(ADM+"/user-stats").then(r=>sU(r?.data||[]));
+    fjA(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));
+    fjA(CAT+"/stats").then(sCS);
+    fjA(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))
+  },[userFilter]);
+  const now=new Date();
+  const dateStr=now.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const ATYPE={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
+  return<div>
+    {/* Banner */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",background:"linear-gradient(135deg,"+C.navy+",#1a4a6e)",borderRadius:12,marginBottom:20,color:"#fff"}}>
+      <div>
+        <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em",color:C.tealB,fontWeight:600,marginBottom:4}}>Tableau de bord</div>
+        <div style={{fontSize:20,fontWeight:700}}>CRM Lihtea</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>{dateStr}</div>
+      </div>
+      <select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",fontSize:12,fontFamily:"inherit",background:"rgba(255,255,255,0.12)",color:"#fff",cursor:"pointer"}}>
+        <option value="" style={{color:C.navy}}>Tous les utilisateurs</option>
+        {users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id} style={{color:C.navy}}>{u.prenom} {u.nom}</option>)}
+      </select>
+    </div>
+    {/* KPI grid */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:10,marginBottom:20}}>
+      <KPICard icon="👥" value={s.total_prospects} label="Prospects" sub="contacts totaux" color={C.navy} iconBg="#dbeafe"/>
+      <KPICard icon="🔥" value={s.prospects_actifs} label="Actifs" sub="en cours" color={C.orange} iconBg="#fff7ed"/>
+      <KPICard icon="✅" value={s.prospects_gagnes} label="Gagnés" sub="dossiers financés" color={C.green} iconBg="#ecfdf5"/>
+      <KPICard icon="📊" value={s.total_simulations} label="Simulations" sub="total créées" color={C.teal} iconBg="#f0fdfa"/>
+      <KPICard icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" sub="volume total" color={C.gold} iconBg="#fef3c7"/>
+      <KPICard icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Aides financées" sub="subventions" color={C.green} iconBg="#ecfdf5"/>
+      <KPICard icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" sub="cumulés" color={C.blue} iconBg="#dbeafe"/>
+      <KPICard icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" sub="économies" color={C.purple} iconBg="#f5f3ff"/>
+      <KPICard icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" sub="retour invest." color={C.teal} iconBg="#f0fdfa"/>
+    </div>
+    {/* Pipeline + Activity */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+      <div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>📋 Pipeline</div>
+        {[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <div style={{width:10,height:10,borderRadius:5,background:PC[k],flexShrink:0}}/>
+          <span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span>
+          <span style={{fontSize:15,fontWeight:800,color:PC[k]}}>{v||0}</span>
+        </div>)}
+      </div>
+      <div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>⚡ Activités récentes</div>
+        {feed.length===0
+          ?<div style={{fontSize:12,color:C.text3,textAlign:"center",padding:"20px 0"}}>Aucune activité récente</div>
+          :feed.slice(0,6).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:10,fontSize:12,alignItems:"flex-start"}}>
+            <span style={{fontSize:15,lineHeight:1.3,flexShrink:0}}>{ATYPE[a.type]||"📌"}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.titre}</div>
+              <div style={{color:C.text3,fontSize:11}}>{fa(a.created_at)}</div>
+            </div>
+          </div>)
+        }
+      </div>
+    </div>
+    {/* Base référentielle */}
+    <div style={{padding:"16px 20px",borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>📦 Base référentielle</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8,fontSize:12,opacity:.85}}>
+        <div>🏛️ {cs?.organismes||0} organismes</div>
+        <div>📋 {cs?.dispositifs||0} dispositifs</div>
+        <div>⚡ {cs?.fiches_cee||0} fiches CEE</div>
+        <div>🏭 {cs?.equipements||0} équipements</div>
+        <div>✅ {cs?.catalogues||0} éligibilités</div>
+        <div>🔗 6 connecteurs API</div>
+      </div>
+    </div>
+  </div>
+}
 
 // === Prospects ===
 function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const[sims,sSims]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[detail,sDetail]=useState(null);const[delTarget,sDelTarget]=useState(null);
@@ -1356,8 +1430,8 @@ return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-
 {NAV.map(section=><div key={section.s}>
 {sb&&<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"12px 16px 4px",letterSpacing:"0.1em",textTransform:"uppercase"}}>{section.s}</div>}
 {section.items.map(item=>{const isActive=page===item.id;return<button key={item.id} onClick={()=>sP(item.id)} style={{
-display:"flex",alignItems:"center",gap:12,
-padding:sb?"14px 16px":"14px 12px",
+display:"flex",alignItems:"center",gap:8,
+padding:sb?"10px 14px":"10px 8px",
 justifyContent:sb?"flex-start":"center",
 borderRadius:0,border:"none",borderLeft:isActive?"4px solid #2dd4bf":"4px solid transparent",
 cursor:"pointer",width:"100%",
@@ -1367,7 +1441,7 @@ fontSize:13,fontWeight:isActive?700:500,fontFamily:"inherit",
 transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",whiteSpace:"nowrap",
 boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 }}>
-<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
+<span style={{fontSize:16,flexShrink:0,width:18,textAlign:"center",filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
 {sb&&<span style={{flex:1}}>{item.l}</span>}
 {sb&&item.id==="supervision"&&supervisionCount>0&&<span style={{minWidth:18,height:18,padding:"0 5px",borderRadius:9,background:"#dc2626",color:"#fff",fontSize:10,fontWeight:700,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{supervisionCount}</span>}
 </button>})}
