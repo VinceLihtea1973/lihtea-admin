@@ -59,7 +59,11 @@ function Input({label,value,onChange,type="text",placeholder,rows,options,disabl
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
 function Toast({msg,error}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:300,padding:"10px 20px",borderRadius:10,background:error||msg.startsWith("❌")?C.red:C.green,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:340}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
-function KPICard({icon,value,label,sub,color=C.navy,iconBg}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,borderLeft:"4px solid "+color,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}><div style={{minWidth:0}}><div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{label}</div><div style={{fontSize:22,fontWeight:800,color,lineHeight:1.1,marginBottom:2}}>{value??"—"}</div>{sub&&<div style={{fontSize:11,color:C.text3}}>{sub}</div>}</div><div style={{width:42,height:42,borderRadius:10,background:iconBg||color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{icon}</div></div>}
+function KPICard({icon,value,label,sub,color=C.navy,iconBg}){return<div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border,cursor:"default"}}><div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>{icon}</span>{label}</div><div style={{fontSize:28,fontWeight:800,color,lineHeight:1,marginBottom:4}}>{value??"—"}</div><div style={{fontSize:12,color:C.text3}}>{sub}</div></div>}
+const SECT_COLORS=["#0d9488","#2563eb","#7c3aed","#d97706","#dc2626","#059669","#ea580c","#0891b2","#6366f1","#f43f5e"];
+function getSector(naf){if(!naf)return"Autre";const m={A:"Agriculture",B:"Mines",C:"Industrie",D:"Énergie",E:"Eau/Env",F:"BTP",G:"Commerce",H:"Transport",I:"Hôtellerie",J:"Info/Com",K:"Finance",L:"Immobilier",M:"Services Pro",N:"Support",P:"Éducation",Q:"Santé",R:"Arts",S:"Services"};return m[naf.charAt(0).toUpperCase()]||"Autre"}
+function DonutChart({data,size=160}){const total=data.reduce((a,d)=>a+d.value,0);if(!total)return<div style={{textAlign:"center",padding:20,color:C.text3,fontSize:12}}>Aucune donnée</div>;const cx=size/2,cy=size/2,r=52,sw=24,circ=2*Math.PI*r;let cp=0;return<svg width={size} height={size} style={{display:"block"}}><circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth={sw}/>{data.map((d,i)=>{const pct=d.value/total;const off=circ/4-cp*circ;cp+=pct;if(!pct)return null;return<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth={sw} strokeDasharray={`${pct*circ} ${circ}`} strokeDashoffset={off}/>})}<text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" style={{fontSize:20,fontWeight:800,fill:C.navy}}>{total}</text><text x={cx} y={cy+17} textAnchor="middle" style={{fontSize:9,fill:C.text3,letterSpacing:"0.05em"}}>PROSPECTS</text></svg>}
+function BarChart({data,h=140}){if(!data?.length)return null;const max=Math.max(...data.map(d=>d.count),1);const n=data.length,W=300,colW=W/n,bw=Math.max(14,colW*0.55);return<svg width="100%" height={h} viewBox={`0 0 ${W} ${h}`} preserveAspectRatio="xMidYMid meet">{data.map((d,i)=>{const bh=Math.max(2,(d.count/max)*(h-32));const x=i*colW+(colW-bw)/2;const y=h-32-bh;return<g key={i}><rect x={x} y={y} width={bw} height={bh} rx={3} fill={d.color||C.teal} opacity={0.85}/>{d.count>0&&<text x={x+bw/2} y={y-4} textAnchor="middle" style={{fontSize:9,fontWeight:700,fill:C.navy}}>{d.count}</text>}<text x={x+bw/2} y={h-6} textAnchor="middle" style={{fontSize:9,fill:C.text3}}>{d.label}</text></g>})}</svg>}
 function DT({columns,data,onEdit,onDelete,loading,empty,pageSize=50}){
   const[pg,setPg]=useState(0);
   const total=data?.length||0;const pages=Math.ceil(total/pageSize);const slice=(data||[]).slice(pg*pageSize,(pg+1)*pageSize);
@@ -102,75 +106,125 @@ function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=
 
 // === CRM Dashboard ===
 function CRMDash(){
-  const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);
+  const[stats,setStats]=useState({});
+  const[prospects,setP]=useState([]);
+  const[sims,setSims]=useState([]);
+  const[activities,setActs]=useState([]);
+  const[users,setU]=useState([]);
+  const[uf,setUF]=useState(null);
   useEffect(()=>{
-    fjA(ADM+"/user-stats").then(r=>sU(r?.data||[]));
-    fjA(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));
-    fjA(CAT+"/stats").then(sCS);
-    fjA(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))
-  },[userFilter]);
+    fjA(ADM+"/user-stats").then(r=>setU(r?.data||[]));
+    fjA(ADM+"/crm-stats"+(uf?`?user_id=${uf}`:"")).then(r=>setStats(r?.data||{}));
+    fjA(ADM+"/prospects"+(uf?`?user_id=${uf}`:"")).then(r=>setP(r?.data||[]));
+    fjA(ADM+"/simulations").then(r=>setSims(r?.data||[]));
+    fjA(ADM+"/activity-feed?limit=30").then(r=>setActs(r?.data||[]));
+  },[uf]);
+  // KPIs
+  const pipeVal=sims.filter(s=>["envoyee","en_cours"].includes(s.statut)).reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0);
+  const totalAides=sims.reduce((a,s)=>a+(Number(s.montant_aides_total)||Number(s.resultats?.total_aides)||0),0);
+  const gained=prospects.filter(p=>p.statut==="gagne").length;
+  const convRate=prospects.length>0?Math.round(gained/prospects.length*100):0;
+  const totalEco=sims.reduce((a,s)=>a+(Number(s.resultats?.economies_energie)||Number(s.resultats?.economie_energie_annuelle)||Number(s.resultats?.economie_annuelle)||0),0);
+  // Sector chart
+  const sectMap={};prospects.forEach(p=>{const s=getSector(p.code_naf);sectMap[s]=(sectMap[s]||0)+1});
+  const sectData=Object.entries(sectMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([l,v],i)=>({label:l,value:v,color:SECT_COLORS[i]}));
+  // Monthly evolution (6 months)
   const now=new Date();
-  const dateStr=now.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  const ATYPE={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
+  const monthData=Array.from({length:6},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(5-i),1);const cnt=prospects.filter(p=>{if(!p.created_at)return false;const pd=new Date(p.created_at);return pd.getFullYear()===d.getFullYear()&&pd.getMonth()===d.getMonth()}).length;return{label:d.toLocaleDateString("fr-FR",{month:"short"}),count:cnt,color:C.navy}});
+  // Top 5 by score
+  const top5=[...prospects].filter(p=>p.score_lead!=null).sort((a,b)=>(b.score_lead||0)-(a.score_lead||0)).slice(0,5);
+  // Overdue: activities older than 2 days
+  const overdue=activities.filter(a=>{if(!["relance","appel","rdv","tache"].includes(a.type))return false;return Math.floor((Date.now()-new Date(a.created_at).getTime())/86400000)>=2}).slice(0,5);
+  // Helpers
+  const fmtK=v=>{const n=Number(v);if(!n||isNaN(n))return"0€";return n>=1e6?Math.round(n/1e6)+"M€":n>=1000?Math.round(n/1000)+"k€":Math.round(n)+"€"};
+  const sc=s=>s>=60?C.green:s>=30?C.orange:C.red;
+  const convColor=convRate>=30?C.green:convRate>=15?C.orange:C.red;
   return<div>
-    {/* Banner */}
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",background:"linear-gradient(135deg,"+C.navy+",#1a4a6e)",borderRadius:12,marginBottom:20,color:"#fff"}}>
+    {/* Header */}
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
       <div>
-        <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em",color:C.tealB,fontWeight:600,marginBottom:4}}>Tableau de bord</div>
-        <div style={{fontSize:20,fontWeight:700}}>CRM Lihtea</div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>{dateStr}</div>
+        <h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Dashboard</h2>
+        <p style={{fontSize:13,color:C.text3,margin:0}}>Vue d'ensemble de votre activité commerciale</p>
       </div>
-      <select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",fontSize:12,fontFamily:"inherit",background:"rgba(255,255,255,0.12)",color:"#fff",cursor:"pointer"}}>
-        <option value="" style={{color:C.navy}}>Tous les utilisateurs</option>
-        {users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id} style={{color:C.navy}}>{u.prenom} {u.nom}</option>)}
-      </select>
-    </div>
-    {/* KPI grid */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:10,marginBottom:20}}>
-      <KPICard icon="👥" value={s.total_prospects} label="Prospects" sub="contacts totaux" color={C.navy} iconBg="#dbeafe"/>
-      <KPICard icon="🔥" value={s.prospects_actifs} label="Actifs" sub="en cours" color={C.orange} iconBg="#fff7ed"/>
-      <KPICard icon="✅" value={s.prospects_gagnes} label="Gagnés" sub="dossiers financés" color={C.green} iconBg="#ecfdf5"/>
-      <KPICard icon="📊" value={s.total_simulations} label="Simulations" sub="total créées" color={C.teal} iconBg="#f0fdfa"/>
-      <KPICard icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" sub="volume total" color={C.gold} iconBg="#fef3c7"/>
-      <KPICard icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Aides financées" sub="subventions" color={C.green} iconBg="#ecfdf5"/>
-      <KPICard icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" sub="cumulés" color={C.blue} iconBg="#dbeafe"/>
-      <KPICard icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" sub="économies" color={C.purple} iconBg="#f5f3ff"/>
-      <KPICard icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" sub="retour invest." color={C.teal} iconBg="#f0fdfa"/>
-    </div>
-    {/* Pipeline + Activity */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
-      <div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>📋 Pipeline</div>
-        {[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <div style={{width:10,height:10,borderRadius:5,background:PC[k],flexShrink:0}}/>
-          <span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span>
-          <span style={{fontSize:15,fontWeight:800,color:PC[k]}}>{v||0}</span>
-        </div>)}
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        {overdue.length>0&&<span style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:C.red,padding:"5px 10px",borderRadius:20,background:C.red+"12"}}>
+          <span style={{width:7,height:7,borderRadius:4,background:C.red,display:"inline-block",flexShrink:0}}/>{overdue.length} en retard
+        </span>}
+        <select value={uf||""} onChange={e=>setUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit",background:C.surface,color:C.text}}>
+          <option value="">Tous les utilisateurs</option>
+          {users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}
+        </select>
+        <Btn color={C.teal}>+ Nouveau prospect</Btn>
       </div>
-      <div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>⚡ Activités récentes</div>
-        {feed.length===0
-          ?<div style={{fontSize:12,color:C.text3,textAlign:"center",padding:"20px 0"}}>Aucune activité récente</div>
-          :feed.slice(0,6).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:10,fontSize:12,alignItems:"flex-start"}}>
-            <span style={{fontSize:15,lineHeight:1.3,flexShrink:0}}>{ATYPE[a.type]||"📌"}</span>
+    </div>
+    {/* 4 KPI cards */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:20}}>
+      <KPICard icon="💼" value={fmtK(pipeVal)} label="VALEUR PIPELINE" sub="montant équipements" color={C.teal}/>
+      <KPICard icon="🎁" value={fmtK(totalAides)} label="AIDES IDENTIFIÉES" sub="subventions cumulées" color={C.green}/>
+      <KPICard icon="✅" value={convRate+"%"} label="DEALS GAGNÉS" sub={gained+" contrat(s) signé(s)"} color={convColor}/>
+      <KPICard icon="⚡" value={totalEco>0?Math.round(totalEco).toLocaleString("fr-FR")+" kWh":stats.roi_moyen?Number(stats.roi_moyen).toFixed(1)+"%":"—"} label="IMPACT ÉNERGIE" sub={totalEco>0?"économies /an":"ROI moyen"} color={C.gold}/>
+    </div>
+    {/* Charts */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:16}}>Répartition Pipeline</div>
+        <BarChart data={[
+          {label:"Nouveau",count:prospects.filter(p=>p.statut==="nouveau").length,color:"#94a3b8"},
+          {label:"Contacté",count:prospects.filter(p=>p.statut==="qualifie").length,color:C.blue},
+          {label:"Qualifié",count:prospects.filter(p=>p.statut==="en_discussion").length,color:C.purple},
+          {label:"Propos.",count:prospects.filter(p=>p.statut==="proposition").length,color:C.gold},
+          {label:"Négoc.",count:prospects.filter(p=>p.statut==="negociation").length,color:C.orange},
+          {label:"Gagné",count:prospects.filter(p=>p.statut==="gagne").length,color:C.green},
+        ]} h={140}/>
+      </div>
+      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Répartition par secteur</div>
+        {sectData.length===0
+          ?<div style={{textAlign:"center",padding:30,color:C.text3,fontSize:12}}>Aucune donnée disponible</div>
+          :<div style={{display:"flex",alignItems:"center",gap:16}}>
+            <DonutChart data={sectData} size={160}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.titre}</div>
-              <div style={{color:C.text3,fontSize:11}}>{fa(a.created_at)}</div>
+              {sectData.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:12}}>
+                <span style={{width:10,height:10,borderRadius:5,background:d.color,flexShrink:0,display:"inline-block"}}/>
+                <span style={{flex:1,color:C.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span>
+                <span style={{fontWeight:700,color:C.navy,fontSize:11}}>{d.value}</span>
+              </div>)}
             </div>
-          </div>)
+          </div>
         }
       </div>
     </div>
-    {/* Base référentielle */}
-    <div style={{padding:"16px 20px",borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}>
-      <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>📦 Base référentielle</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8,fontSize:12,opacity:.85}}>
-        <div>🏛️ {cs?.organismes||0} organismes</div>
-        <div>📋 {cs?.dispositifs||0} dispositifs</div>
-        <div>⚡ {cs?.fiches_cee||0} fiches CEE</div>
-        <div>🏭 {cs?.equipements||0} équipements</div>
-        <div>✅ {cs?.catalogues||0} éligibilités</div>
-        <div>🔗 6 connecteurs API</div>
+    {/* Top 5 + Overdue */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>Top 5 Prospects</div>
+        {top5.length===0
+          ?<div style={{textAlign:"center",padding:24,color:C.text3,fontSize:12}}>Aucun prospect scoré</div>
+          :top5.map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:i<top5.length-1?12:0}}>
+            <div style={{width:34,height:34,borderRadius:8,background:sc(p.score_lead)+"18",border:"2px solid "+sc(p.score_lead)+"40",display:"flex",alignItems:"center",justifyContent:"center",color:sc(p.score_lead),fontSize:11,fontWeight:800,flexShrink:0}}>{p.score_lead??0}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,color:C.navy,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.raison_sociale||"—"}</div>
+              <div style={{fontSize:11,color:C.text3}}>{[getSector(p.code_naf),p.ville].filter(Boolean).join(" · ")}</div>
+            </div>
+            {p.montant_potentiel>0&&<span style={{fontSize:12,fontWeight:700,color:C.teal,flexShrink:0}}>{fmtK(p.montant_potentiel)}</span>}
+          </div>)
+        }
+      </div>
+      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.navy}}>Activités en retard</div>
+          {overdue.length>0&&<span style={{fontSize:12,fontWeight:700,color:C.red}}>{overdue.length} action(s)</span>}
+        </div>
+        {overdue.length===0
+          ?<div style={{textAlign:"center",padding:24,color:C.green,fontSize:12}}>✅ Aucune activité en retard</div>
+          :overdue.map((a,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:i<overdue.length-1?12:0,alignItems:"flex-start"}}>
+            <span style={{width:8,height:8,borderRadius:4,background:C.red,flexShrink:0,marginTop:5}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,color:C.navy,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.prospect_nom||a.titre||"—"}</div>
+              <div style={{fontSize:11,color:C.red,marginTop:1}}>{a.titre||a.type} · {fa(a.created_at)} de retard</div>
+            </div>
+          </div>)
+        }
       </div>
     </div>
   </div>
