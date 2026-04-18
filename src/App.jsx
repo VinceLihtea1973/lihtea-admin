@@ -6,8 +6,8 @@ const CAT = `${API}/catalogue-api`, ADM = `${API}/admin-api`, CON = `${API}/api-
 const TID = localStorage.getItem("gef_tenant_id") || "17a567c3-5369-4035-b771-dac26f496d4e";
 const C = {navy:"#0f2b46",navyL:"#1a3d5c",teal:"#0d9488",tealB:"#14b8a6",tealBg:"#f0fdfa",gold:"#d4a843",bg:"#f6f8fb",surface:"#fff",border:"#e1e7ef",text:"#1a2332",text2:"#4a5568",text3:"#8896a7",red:"#dc2626",green:"#059669",purple:"#7c3aed",blue:"#2563eb",orange:"#ea580c"};
 const SC = {nouveau:C.blue,qualifie:C.teal,en_discussion:C.orange,proposition:C.purple,negociation:C.gold,gagne:C.green,perdu:C.red,inactif:C.text3};
-const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
-const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
+const PC = {brouillon:C.text3,etudie:C.teal,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
+const PL = {brouillon:"Brouillon",etudie:"Étude",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
 const fj = async(u,o={})=>{try{return await(await fetch(u,{headers:{"Content-Type":"application/json"},...o})).json()}catch{return null}};
 let _tok = null; // JWT du user connecté — positionné après login, utilisé par fjA
 let _onUnauth = null; // callback déclenché si 401 non récupérable → logout
@@ -273,21 +273,46 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
   ]}/>
   {/* Detail: prospect simulations */}
   <Modal open={!!detail} onClose={()=>sDetail(null)} title={"Offres — "+(detail?.raison_sociale||"")} wide>
-    {detailSims.length===0?<div style={{padding:20,textAlign:"center",color:C.text3}}>Aucune simulation liée à ce prospect</div>:
-    <div style={{display:"grid",gap:10}}>{detailSims.map((s,i)=><div key={i} style={{padding:12,borderRadius:10,border:"1px solid "+C.border,background:C.bg}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-        <div><span style={{fontWeight:700,color:C.navy}}>{s.client_entreprise||s.client_nom||"Sans nom"}</span><Badge color={PC[s.statut]||C.text3} style={{marginLeft:8}}>{PL[s.statut]||s.statut}</Badge></div>
-        <span style={{fontSize:11,color:C.text3}}>{fd(s.created_at)}</span>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,fontSize:12}}>
-        <div><span style={{color:C.text3}}>Invest: </span><span style={{fontWeight:700}}>{fmt(s.parametres?.investissement||0)}€</span></div>
-        <div><span style={{color:C.text3}}>Aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(s.montant_aides_total||0)}€</span></div>
-        <div><span style={{color:C.text3}}>Loyer: </span><span style={{fontWeight:700}}>{fmt(s.montant_loyer_mensuel||0)}€/m</span></div>
-        <div><span style={{color:C.text3}}>Gain: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(s.gain_net_annuel||0)}€/an</span></div>
-      </div>
-      {s.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2,marginTop:4}}>Équipement: {s.parametres.equipement_label}</div>}
-      {s.notes&&<div style={{fontSize:11,color:C.text3,marginTop:4,fontStyle:"italic"}}>{s.notes}</div>}
-    </div>)}</div>}
+    {(()=>{
+      const refEtude=detailSims.find(s=>s.is_reference_etude)||detailSims.find(s=>s.statut==="etudie");
+      const fek=n=>{const v=Math.abs(Math.round(n||0));return v>=1e6?(v/1e6).toFixed(1).replace(".",",")+" M€":v>=1000?Math.round(v/1000)+" k€":v.toLocaleString("fr-FR")+" €"};
+      return(<>
+        {refEtude&&<div style={{marginBottom:14,padding:14,background:C.tealBg,border:"1px solid #99f6e4",borderRadius:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:C.teal}}>📌 Dernière étude de référence</span>
+            <span style={{fontSize:11,color:C.text3}}>{fd(refEtude.updated_at||refEtude.created_at)}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+            {[
+              {l:"Invest. net",v:fek((refEtude.parametres?.investissement||0)-(refEtude.montant_aides_total||0))},
+              {l:"Aides totales",v:fek(refEtude.montant_aides_total||0)},
+              {l:"Loyer/mois",v:fek(refEtude.montant_loyer_mensuel||0)},
+              {l:"Économies/an",v:fek(refEtude.gain_net_annuel||0)},
+            ].map((k,i)=><div key={i} style={{padding:"8px 10px",background:"#fff",border:"1px solid #99f6e4",borderRadius:7,textAlign:"center"}}>
+              <div style={{fontSize:9,color:C.teal,textTransform:"uppercase",letterSpacing:".06em",fontWeight:700,marginBottom:2}}>{k.l}</div>
+              <div style={{fontSize:14,fontWeight:800,color:C.navy,fontFamily:"monospace"}}>{k.v}</div>
+            </div>)}
+          </div>
+          {refEtude.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2}}>Équipement : {refEtude.parametres.equipement_label}</div>}
+          <a href={`${SIMUL_URL}?siren=${detail?.siren||""}`} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:8,padding:"6px 12px",background:C.teal,color:"#fff",borderRadius:6,fontSize:11,fontWeight:700,textDecoration:"none"}}>↩ Reprendre dans le Simulateur</a>
+        </div>}
+        {detailSims.length===0?<div style={{padding:20,textAlign:"center",color:C.text3}}>Aucune simulation liée à ce prospect</div>:
+        <div style={{display:"grid",gap:10}}>{detailSims.map((s,i)=><div key={i} style={{padding:12,borderRadius:10,border:s.is_reference_etude?"2px solid #99f6e4":"1px solid "+C.border,background:s.is_reference_etude?C.tealBg:C.bg}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div><span style={{fontWeight:700,color:C.navy}}>{s.client_entreprise||s.client_nom||"Sans nom"}</span>{s.is_reference_etude&&<span style={{fontSize:10,marginLeft:6}}>📌</span>}<Badge color={PC[s.statut]||C.text3} style={{marginLeft:8}}>{PL[s.statut]||s.statut}</Badge></div>
+            <span style={{fontSize:11,color:C.text3}}>{fd(s.created_at)}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,fontSize:12}}>
+            <div><span style={{color:C.text3}}>Invest: </span><span style={{fontWeight:700}}>{fmt(s.parametres?.investissement||0)}€</span></div>
+            <div><span style={{color:C.text3}}>Aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(s.montant_aides_total||0)}€</span></div>
+            <div><span style={{color:C.text3}}>Loyer: </span><span style={{fontWeight:700}}>{fmt(s.montant_loyer_mensuel||0)}€/m</span></div>
+            <div><span style={{color:C.text3}}>Gain: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(s.gain_net_annuel||0)}€/an</span></div>
+          </div>
+          {s.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2,marginTop:4}}>Équipement: {s.parametres.equipement_label}</div>}
+          {s.notes&&<div style={{fontSize:11,color:C.text3,marginTop:4,fontStyle:"italic"}}>{s.notes}</div>}
+        </div>)}</div>}
+      </>);
+    })()}
   </Modal>
   {/* Create/Edit Modal */}
   <Modal open={!!m&&m!=="detail"} onClose={()=>sM(null)} title={m==="new"?"Nouveau prospect":"Modifier "+f.raison_sociale} wide>
@@ -318,7 +343,7 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
         <Btn small color={C.teal} variant="outline" onClick={load}>Actualiser</Btn>
       </div>
     </div>
-    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} onDragOver={e=>{e.preventDefault();sDragOver(s)}} onDragLeave={()=>sDragOver(null)} onDrop={e=>{e.preventDefault();sDragOver(null);if(dragId&&dragId!==s){const simId=e.dataTransfer.getData("simId");if(simId)updateStatus(simId,s)}sDragId(null)}} style={{minWidth:240,flex:1,background:dragOver===s?PC[s]+"10":C.surface,borderRadius:12,border:dragOver===s?"2px dashed "+PC[s]:"1px solid "+C.border,overflow:"hidden",transition:"all 0.2s"}}>
+    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","etudie","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} onDragOver={e=>{e.preventDefault();sDragOver(s)}} onDragLeave={()=>sDragOver(null)} onDrop={e=>{e.preventDefault();sDragOver(null);if(dragId&&dragId!==s){const simId=e.dataTransfer.getData("simId");if(simId)updateStatus(simId,s)}sDragId(null)}} style={{minWidth:240,flex:1,background:dragOver===s?PC[s]+"10":C.surface,borderRadius:12,border:dragOver===s?"2px dashed "+PC[s]:"1px solid "+C.border,overflow:"hidden",transition:"all 0.2s"}}>
       <div style={{padding:"10px 14px",borderBottom:"2px solid "+(PC[s]||C.text3),display:"flex",justifyContent:"space-between",alignItems:"center",background:PC[s]+"08"}}>
         <div><div style={{fontSize:12,fontWeight:700,color:PC[s]}}>{PL[s]}</div><div style={{fontSize:10,color:C.text3}}>{items.length} dossier{items.length>1?"s":""}</div></div>
         {tot>0&&<span style={{fontSize:12,fontWeight:800,color:C.text2}}>{Math.round(tot/1000)}k€</span>}
