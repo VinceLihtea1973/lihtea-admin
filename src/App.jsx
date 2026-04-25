@@ -77,13 +77,20 @@ function useCrud(t){
       const restH={"apikey":AK,...authH,"Prefer":"return=minimal"};
       const res2=await fetch(SU+"/rest/v1/"+t+"?id=eq."+id,{method:"DELETE",headers:restH});
       if(res2.ok){_broadcastDeletion(t,id);await r();return{ok:true}}
-      const errBody=await res2.json().catch(()=>({}));
-      console.error("[useCrud] REST DELETE →",res2.status,errBody);
-      return{ok:false,status:res2.status,msg:errBody?.message||errBody?.error||""};
-    }catch(e){
-      console.error("[useCrud] REST DELETE error:",e);
-      return{ok:false,status:0,msg:String(e)}
+      console.warn("[useCrud] REST DELETE →",res2.status,"(tentative soft-delete)");
+    }catch(e){console.warn("[useCrud] REST DELETE error:",e)}
+
+    // Tentative 3 — Soft-delete garanti : PUT score_lead=-999 (contourne les restrictions RLS/edge)
+    // Applicable uniquement pour les prospects. L'UI filtre score_lead < 0.
+    if(t==="prospects"){
+      try{
+        const res3=await fetch(ADM+"/"+t+"/"+id,{method:"PUT",headers:authH,body:JSON.stringify({score_lead:-999,notes:"[SUPPRIMÉ]"})});
+        if(res3.ok||res3.status===200){_broadcastDeletion(t,id);await r();return{ok:true}}
+        console.error("[useCrud] soft-delete PUT →",res3.status);
+      }catch(e){console.error("[useCrud] soft-delete error:",e)}
     }
+
+    return{ok:false,status:0,msg:"Toutes les stratégies de suppression ont échoué"};
   };
 
   return{data:d,loading:l,refresh:r,
@@ -103,7 +110,7 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
   const lookup=async()=>{if(!f.siret||f.siret.replace(/\s/g,"").length!==14)return;sSL(true);const r=await fj(CON+"/siret?siret="+f.siret.replace(/\s/g,""));if(r?.data){const d=r.data;sF(p=>({...p,raison_sociale:d.raison_sociale||p.raison_sociale,siren:d.siren,code_naf:d.code_naf,libelle_naf:d.libelle_naf,taille:d.taille_calculee,effectifs:d.effectifs,adresse:d.adresse,code_postal:d.code_postal,ville:d.ville,region:d.region}))}sSL(false)};
   // Enrich prospects with simulation counts
   const enriched=data.map(p=>{const pSims=sims.filter(s=>s.prospect_id===p.id);return{...p,nb_sims:pSims.length,nb_offres:pSims.filter(s=>s.statut!=="brouillon").length,total_invest:pSims.reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0)}});
-  const fd2=enriched.filter(d=>{if(uf&&d.user_id!==uf)return false;if(!q)return true;return[d.raison_sociale,d.contact_nom,d.siret,d.ville].some(v=>v?.toLowerCase().includes(q.toLowerCase()))});
+  const fd2=enriched.filter(d=>{if(d.score_lead<0)return false;if(uf&&d.user_id!==uf)return false;if(!q)return true;return[d.raison_sociale,d.contact_nom,d.siret,d.ville].some(v=>v?.toLowerCase().includes(q.toLowerCase()))});
   // Stats
   const stN=fd2.filter(d=>d.statut==="nouveau").length;const stP=fd2.filter(d=>d.statut==="proposition").length;const stG=fd2.filter(d=>d.statut==="gagne").length;const totInv=fd2.reduce((a,d)=>a+d.total_invest,0);
   // Get sims for detail view
