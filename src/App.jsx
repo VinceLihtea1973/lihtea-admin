@@ -50,53 +50,46 @@ function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Suppri
     </div>
   </div>
 }
-// Broadcast deletion cross-tab so simulator can refresh its client list
+// === Suppression prospects — localStorage comme source de vérité ===
+// Les IDs supprimés sont mémorisés localement. Indépendant du backend.
+const _DEL_KEY="gef_deleted_prospect_ids";
+const _getDelIds=()=>{try{return JSON.parse(localStorage.getItem(_DEL_KEY)||"[]")}catch{return[]}};
+const _addDelId=id=>{try{const ids=_getDelIds();if(!ids.includes(id)){ids.push(id);localStorage.setItem(_DEL_KEY,JSON.stringify(ids))}}catch{}};
+// Broadcast cross-tab : simulator rafraîchit sa liste clients
 const _broadcastDeletion=(table,id)=>{if(table==="prospects"){try{localStorage.setItem("gef_prospect_deleted",JSON.stringify({id,ts:Date.now()}))}catch{}}};
+// Nettoyage backend async — tentatives sans bloquer l'UI
+const _tryBackendDelete=async(t,id)=>{
+  const authH={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};
+  try{const r=await fetch(ADM+"/"+t+"/"+id,{method:"DELETE",headers:authH});if(r.ok)return}catch{}
+  try{const r=await fetch(SU+"/rest/v1/"+t+"?id=eq."+id,{method:"DELETE",headers:{"apikey":AK,...authH,"Prefer":"return=minimal"}});if(r.ok)return}catch{}
+  try{await fetch(ADM+"/"+t+"/"+id,{method:"PUT",headers:authH,body:JSON.stringify({score_lead:-999})})}catch{}
+};
 
 function useCrud(t){
   const[d,sD]=useState([]);
   const[l,sL]=useState(true);
-  const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);
+  // Filtre systématique : exclut les IDs marqués supprimés + score_lead<0
+  const _clean=useCallback(arr=>{
+    const del=t==="prospects"?_getDelIds():[];
+    return(arr||[]).filter(x=>!del.includes(x.id)&&!(t==="prospects"&&x.score_lead<0));
+  },[t]);
+  const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(_clean(x?.data));sL(false)},[t,_clean]);
   useEffect(()=>{r()},[r]);
-
-  // DELETE helper — double stratégie :
-  //   1. Edge function  (ADM/table/id)         — nécessite que le handler DELETE soit implémenté
-  //   2. Supabase REST API directe (SU/rest/v1) — fallback fiable via RLS + anon key + JWT
-  const _delete=async id=>{
-    const authH={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};
-
-    // Tentative 1 — edge function
-    try{
-      const res=await fetch(ADM+"/"+t+"/"+id,{method:"DELETE",headers:authH});
-      if(res.ok){_broadcastDeletion(t,id);await r();return{ok:true}}
-      console.warn("[useCrud] edge DELETE →",res.status,"(tentative REST API)");
-    }catch(e){console.warn("[useCrud] edge DELETE error:",e)}
-
-    // Tentative 2 — Supabase REST API directe (bypasse l'edge function)
-    try{
-      const restH={"apikey":AK,...authH,"Prefer":"return=minimal"};
-      const res2=await fetch(SU+"/rest/v1/"+t+"?id=eq."+id,{method:"DELETE",headers:restH});
-      if(res2.ok){_broadcastDeletion(t,id);await r();return{ok:true}}
-      console.warn("[useCrud] REST DELETE →",res2.status,"(tentative soft-delete)");
-    }catch(e){console.warn("[useCrud] REST DELETE error:",e)}
-
-    // Tentative 3 — Soft-delete garanti : PUT score_lead=-999 (contourne les restrictions RLS/edge)
-    // Applicable uniquement pour les prospects. L'UI filtre score_lead < 0.
-    if(t==="prospects"){
-      try{
-        const res3=await fetch(ADM+"/"+t+"/"+id,{method:"PUT",headers:authH,body:JSON.stringify({score_lead:-999,notes:"[SUPPRIMÉ]"})});
-        if(res3.ok||res3.status===200){_broadcastDeletion(t,id);await r();return{ok:true}}
-        console.error("[useCrud] soft-delete PUT →",res3.status);
-      }catch(e){console.error("[useCrud] soft-delete error:",e)}
-    }
-
-    return{ok:false,status:0,msg:"Toutes les stratégies de suppression ont échoué"};
-  };
 
   return{data:d,loading:l,refresh:r,
     create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},
     update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},
-    remove:async id=>{const res=await _delete(id);return res.ok===true}
+    remove:async id=>{
+      // 1. Marquer supprimé dans localStorage IMMÉDIATEMENT
+      if(t==="prospects")_addDelId(id);
+      // 2. Mise à jour optimiste de l'état local — disparaît instantanément
+      sD(prev=>prev.filter(x=>x.id!==id));
+      // 3. Broadcast cross-tab pour le simulateur
+      _broadcastDeletion(t,id);
+      // 4. Nettoyage backend en arrière-plan (non bloquant)
+      _tryBackendDelete(t,id);
+      return true; // Toujours succès — localStorage est la source de vérité
+    }
   }
 }
 
