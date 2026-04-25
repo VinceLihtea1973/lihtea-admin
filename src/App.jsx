@@ -6,50 +6,23 @@ const CAT = `${API}/catalogue-api`, ADM = `${API}/admin-api`, CON = `${API}/api-
 const TID = localStorage.getItem("gef_tenant_id") || "17a567c3-5369-4035-b771-dac26f496d4e";
 const C = {navy:"#0f2b46",navyL:"#1a3d5c",teal:"#0d9488",tealB:"#14b8a6",tealBg:"#f0fdfa",gold:"#d4a843",bg:"#f6f8fb",surface:"#fff",border:"#e1e7ef",text:"#1a2332",text2:"#4a5568",text3:"#8896a7",red:"#dc2626",green:"#059669",purple:"#7c3aed",blue:"#2563eb",orange:"#ea580c"};
 const SC = {nouveau:C.blue,qualifie:C.teal,en_discussion:C.orange,proposition:C.purple,negociation:C.gold,gagne:C.green,perdu:C.red,inactif:C.text3};
-const PC = {brouillon:C.text3,etudie:C.teal,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
-const PL = {brouillon:"Brouillon",etudie:"Étude",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
+const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
+const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
 const fj = async(u,o={})=>{try{return await(await fetch(u,{headers:{"Content-Type":"application/json"},...o})).json()}catch{return null}};
 let _tok = null; // JWT du user connecté — positionné après login, utilisé par fjA
-let _onUnauth = null; // callback déclenché si 401 non récupérable → logout
-const fjA = async(u,o={})=>{
-  const h={"Content-Type":"application/json",apikey:AK,...(_tok?{Authorization:"Bearer "+_tok}:{})};
-  try{
-    const res=await fetch(u,{headers:h,...o});
-    if(res.status===401&&_tok){
-      // Tenter un refresh token
-      const sess=au.get();
-      if(sess?.refresh_token){
-        const rr=await fetch(`${AUTH}/token?grant_type=refresh_token`,{method:"POST",headers:ah(),body:JSON.stringify({refresh_token:sess.refresh_token})});
-        const rd=await rr.json();
-        if(rd?.access_token){
-          _tok=rd.access_token;
-          au.set({...sess,access_token:rd.access_token,refresh_token:rd.refresh_token||sess.refresh_token});
-          // Rejouer la requête originale avec le nouveau token
-          const h2={"Content-Type":"application/json",apikey:AK,Authorization:"Bearer "+_tok};
-          const res2=await fetch(u,{headers:h2,...o});
-          return res2.status===204?{ok:true}:res2.json().catch(()=>null);
-        }
-      }
-      // Refresh impossible → déconnecter
-      if(_onUnauth) _onUnauth();
-      return null;
-    }
-    return res.status===204?{ok:true}:res.json().catch(()=>null);
-  }catch{return null}
-};
+const fjA = async(u,o={})=>{const h={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};try{return await(await fetch(u,{headers:h,...o})).json()}catch{return null}};
 const fmt = v=>v!=null?Number(v).toLocaleString("fr-FR"):"—";
 const fd = d=>d?new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const fa = d=>{if(!d)return"—";const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+"min";const h=Math.floor(m/60);return h<24?h+"h":Math.floor(h/24)+"j"};
 const ah = t=>({"Content-Type":"application/json",apikey:AK,...(t?{Authorization:`Bearer ${t}`}:{})});
-const SIMUL_URL='https://app.lihtea.com';
 const au = {
   signIn:async(e,p)=>(await fetch(`${AUTH}/token?grant_type=password`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p})})).json(),
   signUp:async(e,p,d={})=>(await fetch(`${AUTH}/signup`,{method:"POST",headers:ah(),body:JSON.stringify({email:e,password:p,data:d})})).json(),
   getUser:async t=>(await fetch(`${AUTH}/user`,{headers:ah(t)})).json(),
   signOut:async t=>{await fetch(`${AUTH}/logout`,{method:"POST",headers:ah(t)})},
-  get:()=>{try{const ls=JSON.parse(localStorage.getItem("ls"));if(ls?.access_token)return ls;const tok=localStorage.getItem("gef_auth_token");const user=JSON.parse(localStorage.getItem("gef_auth_user")||"null");if(tok&&user)return{access_token:tok,refresh_token:localStorage.getItem("gef_auth_refresh")||"",user};}catch{}return null;},
-  set:s=>{localStorage.setItem("ls",JSON.stringify(s));if(s.access_token)localStorage.setItem("gef_auth_token",s.access_token);if(s.refresh_token)localStorage.setItem("gef_auth_refresh",s.refresh_token);if(s.user)localStorage.setItem("gef_auth_user",JSON.stringify(s.user));},
-  clear:()=>{["ls","gef_auth_token","gef_auth_refresh","gef_auth_user","gef_internal_user_id"].forEach(k=>localStorage.removeItem(k));}
+  get:()=>{try{return JSON.parse(localStorage.getItem("ls"))}catch{return null}},
+  set:s=>localStorage.setItem("ls",JSON.stringify(s)),
+  clear:()=>localStorage.removeItem("ls")
 };
 
 // === UI Components ===
@@ -57,34 +30,9 @@ function Badge({children,color=C.teal}){return<span style={{padding:"2px 8px",bo
 function Btn({children,onClick,color=C.navy,variant="solid",small,disabled,style:sx}){const s=variant==="solid";return<button onClick={onClick} disabled={disabled} style={{padding:small?"5px 10px":"8px 16px",borderRadius:8,border:s?"none":"1px solid "+color+"40",cursor:disabled?"not-allowed":"pointer",background:s?color:"transparent",color:s?"#fff":color,fontSize:small?11:12,fontWeight:600,fontFamily:"inherit",opacity:disabled?.5:1,...sx}}>{children}</button>}
 function Input({label,value,onChange,type="text",placeholder,rows,options,disabled}){const b={padding:"8px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:13,fontFamily:"inherit",background:disabled?C.bg:C.surface,color:C.text,outline:"none",width:"100%",boxSizing:"border-box"};return<div style={{marginBottom:10}}>{label&&<div style={{fontSize:11,fontWeight:600,color:C.text3,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</div>}{options?<select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={b}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:rows?<textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} placeholder={placeholder} disabled={disabled} style={{...b,resize:"vertical"}}/>:<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} disabled={disabled} style={b}/>}</div>}
 function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
-function Toast({msg,error}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:300,padding:"10px 20px",borderRadius:10,background:error||msg.startsWith("❌")?C.red:C.green,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:340}}>{msg}</div>}
+function Toast({msg}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:200,padding:"10px 20px",borderRadius:10,background:C.green,color:"#fff",fontSize:13,fontWeight:600}}>{msg}</div>}
 function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
-function KPICard({icon,value,label,sub,color=C.navy,iconBg}){return<div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border,cursor:"default"}}><div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>{icon}</span>{label}</div><div style={{fontSize:28,fontWeight:800,color,lineHeight:1,marginBottom:4}}>{value??"—"}</div><div style={{fontSize:12,color:C.text3}}>{sub}</div></div>}
-const SECT_COLORS=["#0d9488","#2563eb","#7c3aed","#d97706","#dc2626","#059669","#ea580c","#0891b2","#6366f1","#f43f5e"];
-function getSector(naf){if(!naf)return"Autre";const m={A:"Agriculture",B:"Mines",C:"Industrie",D:"Énergie",E:"Eau/Env",F:"BTP",G:"Commerce",H:"Transport",I:"Hôtellerie",J:"Info/Com",K:"Finance",L:"Immobilier",M:"Services Pro",N:"Support",P:"Éducation",Q:"Santé",R:"Arts",S:"Services"};return m[naf.charAt(0).toUpperCase()]||"Autre"}
-function DonutChart({data,size=160}){const total=data.reduce((a,d)=>a+d.value,0);if(!total)return<div style={{textAlign:"center",padding:20,color:C.text3,fontSize:12}}>Aucune donnée</div>;const cx=size/2,cy=size/2,r=52,sw=24,circ=2*Math.PI*r;let cp=0;return<svg width={size} height={size} style={{display:"block"}}><circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth={sw}/>{data.map((d,i)=>{const pct=d.value/total;const off=circ/4-cp*circ;cp+=pct;if(!pct)return null;return<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth={sw} strokeDasharray={`${pct*circ} ${circ}`} strokeDashoffset={off}/>})}<text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" style={{fontSize:20,fontWeight:800,fill:C.navy}}>{total}</text><text x={cx} y={cy+17} textAnchor="middle" style={{fontSize:9,fill:C.text3,letterSpacing:"0.05em"}}>PROSPECTS</text></svg>}
-function BarChart({data,h=140}){if(!data?.length)return null;const max=Math.max(...data.map(d=>d.count),1);const n=data.length,W=300,colW=W/n,bw=Math.max(14,colW*0.55);return<svg width="100%" height={h} viewBox={`0 0 ${W} ${h}`} preserveAspectRatio="xMidYMid meet">{data.map((d,i)=>{const bh=Math.max(2,(d.count/max)*(h-32));const x=i*colW+(colW-bw)/2;const y=h-32-bh;return<g key={i}><rect x={x} y={y} width={bw} height={bh} rx={3} fill={d.color||C.teal} opacity={0.85}/>{d.count>0&&<text x={x+bw/2} y={y-4} textAnchor="middle" style={{fontSize:9,fontWeight:700,fill:C.navy}}>{d.count}</text>}<text x={x+bw/2} y={h-6} textAnchor="middle" style={{fontSize:9,fill:C.text3}}>{d.label}</text></g>})}</svg>}
-function DT({columns,data,onEdit,onDelete,loading,empty,pageSize=50}){
-  const[pg,setPg]=useState(0);
-  const total=data?.length||0;const pages=Math.ceil(total/pageSize);const slice=(data||[]).slice(pg*pageSize,(pg+1)*pageSize);
-  if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
-  if(!total)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;
-  return<div>
-    <div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-        <thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead>
-        <tbody>{slice.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody>
-      </table>
-    </div>
-    {pages>1&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 4px",fontSize:12,color:C.text3}}>
-      <span>{pg*pageSize+1}–{Math.min((pg+1)*pageSize,total)} sur {total}</span>
-      <div style={{display:"flex",gap:6}}>
-        <Btn small variant="outline" disabled={pg===0} onClick={()=>setPg(p=>p-1)}>← Précédent</Btn>
-        <Btn small variant="outline" disabled={pg>=pages-1} onClick={()=>setPg(p=>p+1)}>Suivant →</Btn>
-      </div>
-    </div>}
-  </div>
-}
+function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
 function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon="⚠️"}){
   if(!open)return null;
   return<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.6)",backdropFilter:"blur(6px)",animation:"cfmIn .2s ease"}} onClick={onClose}>
@@ -105,135 +53,12 @@ function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Suppri
 function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);useEffect(()=>{r()},[r]);return{data:d,loading:l,refresh:r,create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},remove:async id=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"DELETE"});if(x&&!x.error){await r();return true}return false}}}
 
 // === CRM Dashboard ===
-function CRMDash(){
-  const[stats,setStats]=useState({});
-  const[prospects,setP]=useState([]);
-  const[sims,setSims]=useState([]);
-  const[activities,setActs]=useState([]);
-  const[users,setU]=useState([]);
-  const[uf,setUF]=useState(null);
-  useEffect(()=>{
-    fjA(ADM+"/user-stats").then(r=>setU(r?.data||[]));
-    fjA(ADM+"/crm-stats"+(uf?`?user_id=${uf}`:"")).then(r=>setStats(r?.data||{}));
-    fjA(ADM+"/prospects"+(uf?`?user_id=${uf}`:"")).then(r=>setP(r?.data||[]));
-    fjA(ADM+"/simulations").then(r=>setSims(r?.data||[]));
-    fjA(ADM+"/activity-feed?limit=30").then(r=>setActs(r?.data||[]));
-  },[uf]);
-  // KPIs
-  const pipeVal=sims.filter(s=>["envoyee","en_cours"].includes(s.statut)).reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0);
-  const totalAides=sims.reduce((a,s)=>a+(Number(s.montant_aides_total)||Number(s.resultats?.total_aides)||0),0);
-  const gained=prospects.filter(p=>p.statut==="gagne").length;
-  const convRate=prospects.length>0?Math.round(gained/prospects.length*100):0;
-  const totalEco=sims.reduce((a,s)=>a+(Number(s.resultats?.economies_energie)||Number(s.resultats?.economie_energie_annuelle)||Number(s.resultats?.economie_annuelle)||0),0);
-  // Sector chart
-  const sectMap={};prospects.forEach(p=>{const s=getSector(p.code_naf);sectMap[s]=(sectMap[s]||0)+1});
-  const sectData=Object.entries(sectMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([l,v],i)=>({label:l,value:v,color:SECT_COLORS[i]}));
-  // Monthly evolution (6 months)
-  const now=new Date();
-  const monthData=Array.from({length:6},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(5-i),1);const cnt=prospects.filter(p=>{if(!p.created_at)return false;const pd=new Date(p.created_at);return pd.getFullYear()===d.getFullYear()&&pd.getMonth()===d.getMonth()}).length;return{label:d.toLocaleDateString("fr-FR",{month:"short"}),count:cnt,color:C.navy}});
-  // Top 5 by score
-  const top5=[...prospects].filter(p=>p.score_lead!=null).sort((a,b)=>(b.score_lead||0)-(a.score_lead||0)).slice(0,5);
-  // Overdue: activities older than 2 days
-  const overdue=activities.filter(a=>{if(!["relance","appel","rdv","tache"].includes(a.type))return false;return Math.floor((Date.now()-new Date(a.created_at).getTime())/86400000)>=2}).slice(0,5);
-  // Helpers
-  const fmtK=v=>{const n=Number(v);if(!n||isNaN(n))return"0€";return n>=1e6?Math.round(n/1e6)+"M€":n>=1000?Math.round(n/1000)+"k€":Math.round(n)+"€"};
-  const sc=s=>s>=60?C.green:s>=30?C.orange:C.red;
-  const convColor=convRate>=30?C.green:convRate>=15?C.orange:C.red;
-  return<div>
-    {/* Header */}
-    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-      <div>
-        <h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Dashboard</h2>
-        <p style={{fontSize:13,color:C.text3,margin:0}}>Vue d'ensemble de votre activité commerciale</p>
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        {overdue.length>0&&<span style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:C.red,padding:"5px 10px",borderRadius:20,background:C.red+"12"}}>
-          <span style={{width:7,height:7,borderRadius:4,background:C.red,display:"inline-block",flexShrink:0}}/>{overdue.length} en retard
-        </span>}
-        <select value={uf||""} onChange={e=>setUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit",background:C.surface,color:C.text}}>
-          <option value="">Tous les utilisateurs</option>
-          {users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}
-        </select>
-        <Btn color={C.teal}>+ Nouveau prospect</Btn>
-      </div>
-    </div>
-    {/* 4 KPI cards */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:20}}>
-      <KPICard icon="💼" value={fmtK(pipeVal)} label="VALEUR PIPELINE" sub="montant équipements" color={C.teal}/>
-      <KPICard icon="🎁" value={fmtK(totalAides)} label="AIDES IDENTIFIÉES" sub="subventions cumulées" color={C.green}/>
-      <KPICard icon="✅" value={convRate+"%"} label="DEALS GAGNÉS" sub={gained+" contrat(s) signé(s)"} color={convColor}/>
-      <KPICard icon="⚡" value={totalEco>0?Math.round(totalEco).toLocaleString("fr-FR")+" kWh":stats.roi_moyen?Number(stats.roi_moyen).toFixed(1)+"%":"—"} label="IMPACT ÉNERGIE" sub={totalEco>0?"économies /an":"ROI moyen"} color={C.gold}/>
-    </div>
-    {/* Charts */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:16}}>Répartition Pipeline</div>
-        <BarChart data={[
-          {label:"Nouveau",count:prospects.filter(p=>p.statut==="nouveau").length,color:"#94a3b8"},
-          {label:"Contacté",count:prospects.filter(p=>p.statut==="qualifie").length,color:C.blue},
-          {label:"Qualifié",count:prospects.filter(p=>p.statut==="en_discussion").length,color:C.purple},
-          {label:"Propos.",count:prospects.filter(p=>p.statut==="proposition").length,color:C.gold},
-          {label:"Négoc.",count:prospects.filter(p=>p.statut==="negociation").length,color:C.orange},
-          {label:"Gagné",count:prospects.filter(p=>p.statut==="gagne").length,color:C.green},
-        ]} h={140}/>
-      </div>
-      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Répartition par secteur</div>
-        {sectData.length===0
-          ?<div style={{textAlign:"center",padding:30,color:C.text3,fontSize:12}}>Aucune donnée disponible</div>
-          :<div style={{display:"flex",alignItems:"center",gap:16}}>
-            <DonutChart data={sectData} size={160}/>
-            <div style={{flex:1,minWidth:0}}>
-              {sectData.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:12}}>
-                <span style={{width:10,height:10,borderRadius:5,background:d.color,flexShrink:0,display:"inline-block"}}/>
-                <span style={{flex:1,color:C.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span>
-                <span style={{fontWeight:700,color:C.navy,fontSize:11}}>{d.value}</span>
-              </div>)}
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-    {/* Top 5 + Overdue */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:14}}>Top 5 Prospects</div>
-        {top5.length===0
-          ?<div style={{textAlign:"center",padding:24,color:C.text3,fontSize:12}}>Aucun prospect scoré</div>
-          :top5.map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:i<top5.length-1?12:0}}>
-            <div style={{width:34,height:34,borderRadius:8,background:sc(p.score_lead)+"18",border:"2px solid "+sc(p.score_lead)+"40",display:"flex",alignItems:"center",justifyContent:"center",color:sc(p.score_lead),fontSize:11,fontWeight:800,flexShrink:0}}>{p.score_lead??0}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,color:C.navy,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.raison_sociale||"—"}</div>
-              <div style={{fontSize:11,color:C.text3}}>{[getSector(p.code_naf),p.ville].filter(Boolean).join(" · ")}</div>
-            </div>
-            {p.montant_potentiel>0&&<span style={{fontSize:12,fontWeight:700,color:C.teal,flexShrink:0}}>{fmtK(p.montant_potentiel)}</span>}
-          </div>)
-        }
-      </div>
-      <div style={{padding:20,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.navy}}>Activités en retard</div>
-          {overdue.length>0&&<span style={{fontSize:12,fontWeight:700,color:C.red}}>{overdue.length} action(s)</span>}
-        </div>
-        {overdue.length===0
-          ?<div style={{textAlign:"center",padding:24,color:C.green,fontSize:12}}>✅ Aucune activité en retard</div>
-          :overdue.map((a,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:i<overdue.length-1?12:0,alignItems:"flex-start"}}>
-            <span style={{width:8,height:8,borderRadius:4,background:C.red,flexShrink:0,marginTop:5}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:600,color:C.navy,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.prospect_nom||a.titre||"—"}</div>
-              <div style={{fontSize:11,color:C.red,marginTop:1}}>{a.titre||a.type} · {fa(a.created_at)} de retard</div>
-            </div>
-          </div>)
-        }
-      </div>
-    </div>
-  </div>
-}
+function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
 
 // === Prospects ===
 function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const[sims,sSims]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[detail,sDetail]=useState(null);const[delTarget,sDelTarget]=useState(null);
   const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  useEffect(()=>{fjA(ADM+"/simulations").then(r=>sSims(r?.data||[]));fjA(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+  useEffect(()=>{fj(ADM+"/simulations").then(r=>sSims(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
   const lookup=async()=>{if(!f.siret||f.siret.replace(/\s/g,"").length!==14)return;sSL(true);const r=await fj(CON+"/siret?siret="+f.siret.replace(/\s/g,""));if(r?.data){const d=r.data;sF(p=>({...p,raison_sociale:d.raison_sociale||p.raison_sociale,siren:d.siren,code_naf:d.code_naf,libelle_naf:d.libelle_naf,taille:d.taille_calculee,effectifs:d.effectifs,adresse:d.adresse,code_postal:d.code_postal,ville:d.ville,region:d.region}))}sSL(false)};
   // Enrich prospects with simulation counts
   const enriched=data.map(p=>{const pSims=sims.filter(s=>s.prospect_id===p.id);return{...p,nb_sims:pSims.length,nb_offres:pSims.filter(s=>s.statut!=="brouillon").length,total_invest:pSims.reduce((a,s)=>a+(Number(s.parametres?.investissement)||0),0)}});
@@ -273,46 +98,21 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
   ]}/>
   {/* Detail: prospect simulations */}
   <Modal open={!!detail} onClose={()=>sDetail(null)} title={"Offres — "+(detail?.raison_sociale||"")} wide>
-    {(()=>{
-      const refEtude=detailSims.find(s=>s.is_reference_etude)||detailSims.find(s=>s.statut==="etudie");
-      const fek=n=>{const v=Math.abs(Math.round(n||0));return v>=1e6?(v/1e6).toFixed(1).replace(".",",")+" M€":v>=1000?Math.round(v/1000)+" k€":v.toLocaleString("fr-FR")+" €"};
-      return(<>
-        {refEtude&&<div style={{marginBottom:14,padding:14,background:C.tealBg,border:"1px solid #99f6e4",borderRadius:10}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-            <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:C.teal}}>📌 Dernière étude de référence</span>
-            <span style={{fontSize:11,color:C.text3}}>{fd(refEtude.updated_at||refEtude.created_at)}</span>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
-            {[
-              {l:"Invest. net",v:fek((refEtude.parametres?.investissement||0)-(refEtude.montant_aides_total||0))},
-              {l:"Aides totales",v:fek(refEtude.montant_aides_total||0)},
-              {l:"Loyer/mois",v:fek(refEtude.montant_loyer_mensuel||0)},
-              {l:"Économies/an",v:fek(refEtude.gain_net_annuel||0)},
-            ].map((k,i)=><div key={i} style={{padding:"8px 10px",background:"#fff",border:"1px solid #99f6e4",borderRadius:7,textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.teal,textTransform:"uppercase",letterSpacing:".06em",fontWeight:700,marginBottom:2}}>{k.l}</div>
-              <div style={{fontSize:14,fontWeight:800,color:C.navy,fontFamily:"monospace"}}>{k.v}</div>
-            </div>)}
-          </div>
-          {refEtude.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2}}>Équipement : {refEtude.parametres.equipement_label}</div>}
-          <a href={`${SIMUL_URL}?siren=${detail?.siren||""}`} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:8,padding:"6px 12px",background:C.teal,color:"#fff",borderRadius:6,fontSize:11,fontWeight:700,textDecoration:"none"}}>↩ Reprendre dans le Simulateur</a>
-        </div>}
-        {detailSims.length===0?<div style={{padding:20,textAlign:"center",color:C.text3}}>Aucune simulation liée à ce prospect</div>:
-        <div style={{display:"grid",gap:10}}>{detailSims.map((s,i)=><div key={i} style={{padding:12,borderRadius:10,border:s.is_reference_etude?"2px solid #99f6e4":"1px solid "+C.border,background:s.is_reference_etude?C.tealBg:C.bg}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div><span style={{fontWeight:700,color:C.navy}}>{s.client_entreprise||s.client_nom||"Sans nom"}</span>{s.is_reference_etude&&<span style={{fontSize:10,marginLeft:6}}>📌</span>}<Badge color={PC[s.statut]||C.text3} style={{marginLeft:8}}>{PL[s.statut]||s.statut}</Badge></div>
-            <span style={{fontSize:11,color:C.text3}}>{fd(s.created_at)}</span>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,fontSize:12}}>
-            <div><span style={{color:C.text3}}>Invest: </span><span style={{fontWeight:700}}>{fmt(s.parametres?.investissement||0)}€</span></div>
-            <div><span style={{color:C.text3}}>Aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(s.montant_aides_total||0)}€</span></div>
-            <div><span style={{color:C.text3}}>Loyer: </span><span style={{fontWeight:700}}>{fmt(s.montant_loyer_mensuel||0)}€/m</span></div>
-            <div><span style={{color:C.text3}}>Gain: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(s.gain_net_annuel||0)}€/an</span></div>
-          </div>
-          {s.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2,marginTop:4}}>Équipement: {s.parametres.equipement_label}</div>}
-          {s.notes&&<div style={{fontSize:11,color:C.text3,marginTop:4,fontStyle:"italic"}}>{s.notes}</div>}
-        </div>)}</div>}
-      </>);
-    })()}
+    {detailSims.length===0?<div style={{padding:20,textAlign:"center",color:C.text3}}>Aucune simulation liée à ce prospect</div>:
+    <div style={{display:"grid",gap:10}}>{detailSims.map((s,i)=><div key={i} style={{padding:12,borderRadius:10,border:"1px solid "+C.border,background:C.bg}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div><span style={{fontWeight:700,color:C.navy}}>{s.client_entreprise||s.client_nom||"Sans nom"}</span><Badge color={PC[s.statut]||C.text3} style={{marginLeft:8}}>{PL[s.statut]||s.statut}</Badge></div>
+        <span style={{fontSize:11,color:C.text3}}>{fd(s.created_at)}</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,fontSize:12}}>
+        <div><span style={{color:C.text3}}>Invest: </span><span style={{fontWeight:700}}>{fmt(s.parametres?.investissement||0)}€</span></div>
+        <div><span style={{color:C.text3}}>Aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(s.montant_aides_total||0)}€</span></div>
+        <div><span style={{color:C.text3}}>Loyer: </span><span style={{fontWeight:700}}>{fmt(s.montant_loyer_mensuel||0)}€/m</span></div>
+        <div><span style={{color:C.text3}}>Gain: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(s.gain_net_annuel||0)}€/an</span></div>
+      </div>
+      {s.parametres?.equipement_label&&<div style={{fontSize:11,color:C.text2,marginTop:4}}>Équipement: {s.parametres.equipement_label}</div>}
+      {s.notes&&<div style={{fontSize:11,color:C.text3,marginTop:4,fontStyle:"italic"}}>{s.notes}</div>}
+    </div>)}</div>}
   </Modal>
   {/* Create/Edit Modal */}
   <Modal open={!!m&&m!=="detail"} onClose={()=>sM(null)} title={m==="new"?"Nouveau prospect":"Modifier "+f.raison_sociale} wide>
@@ -329,10 +129,11 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
   </div>}
 
 // === Pipeline ===
-function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[users,sU]=useState([]);const[uf,sUF]=useState("");const[detail,sD]=useState(null);const[dragId,sDragId]=useState(null);const[dragOver,sDragOver]=useState(null);
-  const load=()=>{sL(true);const q=uf?`?user_id=${uf}`:"";fjA(ADM+"/pipeline"+q).then(r=>{sP(r);sL(false)})};
-  useEffect(()=>{load();fjA(ADM+"/user-stats").then(r=>sU(r?.data||[]))},[uf]);
+function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[users,sU]=useState([]);const[uf,sUF]=useState("");const[detail,sD]=useState(null);const[dragId,sDragId]=useState(null);const[dragOver,sDragOver]=useState(null);const[delSim,sDelSim]=useState(null);const[toast,sToast]=useState("");const ft=x=>{sToast(x);setTimeout(()=>sToast(""),3000)};
+  const load=()=>{sL(true);const q=uf?`?user_id=${uf}`:"";fj(ADM+"/pipeline"+q).then(r=>{sP(r);sL(false)})};
+  useEffect(()=>{load();fj(ADM+"/user-stats").then(r=>sU(r?.data||[]))},[uf]);
   const updateStatus=async(simId,newStatus)=>{await fjA(ADM+"/simulations/"+simId,{method:"PUT",body:JSON.stringify({statut:newStatus})});load()};
+  const deleteSim=async(sim)=>{const x=await fjA(ADM+"/simulations/"+sim.id,{method:"DELETE"});if(x&&!x.error){ft("Simulation supprimée ✓");sD(null);load()}else ft("Erreur lors de la suppression")};
   if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
   const g=p?.grouped||{};const total=p?.count||0;const totVal=Object.values(g).flat().reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);
   return<div>
@@ -343,7 +144,7 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
         <Btn small color={C.teal} variant="outline" onClick={load}>Actualiser</Btn>
       </div>
     </div>
-    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","etudie","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} onDragOver={e=>{e.preventDefault();sDragOver(s)}} onDragLeave={()=>sDragOver(null)} onDrop={e=>{e.preventDefault();sDragOver(null);if(dragId&&dragId!==s){const simId=e.dataTransfer.getData("simId");if(simId)updateStatus(simId,s)}sDragId(null)}} style={{minWidth:240,flex:1,background:dragOver===s?PC[s]+"10":C.surface,borderRadius:12,border:dragOver===s?"2px dashed "+PC[s]:"1px solid "+C.border,overflow:"hidden",transition:"all 0.2s"}}>
+    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} onDragOver={e=>{e.preventDefault();sDragOver(s)}} onDragLeave={()=>sDragOver(null)} onDrop={e=>{e.preventDefault();sDragOver(null);if(dragId&&dragId!==s){const simId=e.dataTransfer.getData("simId");if(simId)updateStatus(simId,s)}sDragId(null)}} style={{minWidth:240,flex:1,background:dragOver===s?PC[s]+"10":C.surface,borderRadius:12,border:dragOver===s?"2px dashed "+PC[s]:"1px solid "+C.border,overflow:"hidden",transition:"all 0.2s"}}>
       <div style={{padding:"10px 14px",borderBottom:"2px solid "+(PC[s]||C.text3),display:"flex",justifyContent:"space-between",alignItems:"center",background:PC[s]+"08"}}>
         <div><div style={{fontSize:12,fontWeight:700,color:PC[s]}}>{PL[s]}</div><div style={{fontSize:10,color:C.text3}}>{items.length} dossier{items.length>1?"s":""}</div></div>
         {tot>0&&<span style={{fontSize:12,fontWeight:800,color:C.text2}}>{Math.round(tot/1000)}k€</span>}
@@ -368,105 +169,40 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
     </div>})}</div>
     {/* Detail Modal */}
     <Modal open={!!detail} onClose={()=>sD(null)} title={"Simulation — "+(detail?.client_entreprise||detail?.client_nom||"Sans nom")} wide>
-      {detail&&(()=>{
-        // ── Calculs dérivés ──
-        const inv    = Number(detail.parametres?.investissement) || 0;
-        const duree  = Number(detail.parametres?.duree_ans) || 0;
-        const taux   = Number(detail.parametres?.taux) || 0;
-        const aides  = Number(detail.montant_aides_total) || Number(detail.resultats?.total_aides) || 0;
-        const coutNet = Number(detail.resultats?.cout_net) || Math.max(0, inv - aides);
-        const pctCouvert = inv > 0 ? Math.round(aides / inv * 100) : 0;
-
-        // Loyer : valeur stockée en priorité, sinon recalcul depuis params
-        const loyerStocke = Number(detail.montant_loyer_mensuel) || Number(detail.resultats?.mensualite_nette) || 0;
-        const loyerCalc = (() => {
-          if (loyerStocke > 0) return loyerStocke;
-          if (coutNet > 0 && duree > 0) {
-            const r = taux / 100 / 12;
-            const n = duree * 12;
-            if (r === 0) return coutNet / n;
-            return coutNet * r / (1 - Math.pow(1 + r, -n));
-          }
-          return 0;
-        })();
-        const loyerIsEstim = loyerStocke === 0 && loyerCalc > 0;
-
-        // Gain : valeur stockée ou résultats
-        const gain = Number(detail.gain_net_annuel) || Number(detail.resultats?.economie_annuelle) || Number(detail.resultats?.gain_annuel) || 0;
-        const gainMensuel = gain > 0 ? Math.round(gain / 12) : 0;
-        const solde = loyerCalc > 0 && gainMensuel > 0 ? Math.round(gainMensuel - loyerCalc) : null;
-
-        return <div>
-          {/* ── Bande métriques clés ── */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
-            {[
-              {label:"Investissement", val:fmt(inv)+"€", color:C.navy, sub:null},
-              {label:"Aides totales",  val:"-"+fmt(aides)+"€", color:C.green, sub:pctCouvert+"%  couvert"},
-              {label:"Capital financé",val:fmt(Math.round(coutNet))+"€", color:C.navy, sub:null},
-              {label:"Loyer mensuel",  val:fmt(Math.round(loyerCalc))+"€/m", color:loyerCalc>0?C.purple:"#94a3b8",
-               sub:loyerIsEstim?"estimé · "+duree+" ans · "+taux+"%":duree+"  ans · "+taux+"%"},
-            ].map(({label,val,color,sub})=>(
-              <div key={label} style={{padding:"10px 12px",borderRadius:10,background:C.bg,border:"1px solid "+C.border,textAlign:"center"}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:15,fontWeight:800,color,fontFamily:"var(--font-mono,'monospace')"}}>{val}</div>
-                {sub&&<div style={{fontSize:9,color:C.text3,marginTop:3}}>{sub}</div>}
-              </div>
-            ))}
-          </div>
-
-          {/* ── Gain + solde ── */}
-          {gain > 0 && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-              <div style={{padding:"10px 14px",borderRadius:10,background:"#ecfdf5",border:"1px solid #6ee7b7",display:"flex",alignItems:"center",gap:10}}>
-                <div style={{fontSize:18}}>⚡</div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"#059669",textTransform:"uppercase",letterSpacing:"0.06em"}}>Gain énergie annuel</div>
-                  <div style={{fontSize:16,fontWeight:800,color:"#059669"}}>{fmt(gain)} €/an <span style={{fontSize:11,fontWeight:600,opacity:.7}}>({fmt(gainMensuel)}€/mois)</span></div>
-                </div>
-              </div>
-              <div style={{padding:"10px 14px",borderRadius:10,background:solde!==null&&solde>=0?"#ecfdf5":solde!==null?"#fef2f2":C.bg,border:"1px solid "+(solde!==null&&solde>=0?"#6ee7b7":solde!==null?"#fca5a5":C.border),display:"flex",alignItems:"center",gap:10}}>
-                <div style={{fontSize:18}}>{solde!==null&&solde>=0?"✔":"↔"}</div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:solde!==null&&solde>=0?"#059669":solde!==null?"#dc2626":C.text3,textTransform:"uppercase",letterSpacing:"0.06em"}}>Effort réel / mois</div>
-                  <div style={{fontSize:16,fontWeight:800,color:solde!==null&&solde>=0?"#059669":solde!==null?"#dc2626":C.text2}}>
-                    {solde!==null ? (solde>=0?"+":"")+fmt(solde)+" €" : "—"}
-                  </div>
-                  {solde!==null&&<div style={{fontSize:9,color:C.text3,marginTop:1}}>gains − loyer</div>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Infos + statut ── */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-            <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
-              <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Informations</div>
-              <div style={{fontSize:12,display:"grid",gap:4}}>
-                <div><span style={{color:C.text3}}>Client: </span><span style={{fontWeight:600}}>{detail.client_entreprise||detail.client_nom||"—"}</span></div>
-                <div><span style={{color:C.text3}}>Taille: </span>{detail.client_taille?<Badge color={C.teal}>{detail.client_taille}</Badge>:"—"}</div>
-                <div><span style={{color:C.text3}}>Équipement: </span><span style={{fontWeight:500}}>{detail.parametres?.equipement_label||"—"}</span></div>
-                <div><span style={{color:C.text3}}>Créée: </span>{fd(detail.created_at)}</div>
-                {detail.notes&&<div><span style={{color:C.text3}}>Notes: </span>{detail.notes}</div>}
-              </div>
-            </div>
-            <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
-              <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Paramètres</div>
-              <div style={{fontSize:12,display:"grid",gap:4}}>
-                <div><span style={{color:C.text3}}>Consommation: </span><span style={{fontWeight:600}}>{detail.parametres?.consommation ? fmt(detail.parametres.consommation)+" MWh/an" : "—"}</span></div>
-                <div><span style={{color:C.text3}}>Durée: </span><span style={{fontWeight:600}}>{duree ? duree+" ans" : "—"}</span></div>
-                <div><span style={{color:C.text3}}>Taux: </span><span style={{fontWeight:600}}>{taux ? taux+"%" : "—"}</span></div>
-                <div><span style={{color:C.text3}}>Aides couvertes: </span><span style={{fontWeight:600,color:C.green}}>{pctCouvert}%</span></div>
-              </div>
+      {detail&&<div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Informations</div>
+            <div style={{fontSize:12,display:"grid",gap:4}}>
+              <div><span style={{color:C.text3}}>Client: </span><span style={{fontWeight:600}}>{detail.client_entreprise||detail.client_nom||"—"}</span></div>
+              <div><span style={{color:C.text3}}>Taille: </span>{detail.client_taille?<Badge color={C.teal}>{detail.client_taille}</Badge>:"—"}</div>
+              <div><span style={{color:C.text3}}>Équipement: </span>{detail.parametres?.equipement_label||"—"}</div>
+              <div><span style={{color:C.text3}}>Créée: </span>{fd(detail.created_at)}</div>
+              <div><span style={{color:C.text3}}>Notes: </span>{detail.notes||"—"}</div>
             </div>
           </div>
-
-          <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Changer le statut</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
+          <div style={{padding:12,borderRadius:10,background:C.bg,border:"1px solid "+C.border}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Résultats financiers</div>
+            <div style={{fontSize:12,display:"grid",gap:4}}>
+              <div><span style={{color:C.text3}}>Investissement: </span><span style={{fontWeight:700,color:C.navy}}>{fmt(detail.parametres?.investissement||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Total aides: </span><span style={{fontWeight:700,color:C.green}}>{fmt(detail.montant_aides_total||detail.resultats?.total_aides||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Loyer mensuel: </span><span style={{fontWeight:700}}>{fmt(detail.montant_loyer_mensuel||detail.resultats?.mensualite_nette||detail.resultats?.loyer_mensuel||detail.resultats?.mensualite||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Gain annuel: </span><span style={{fontWeight:700,color:C.teal}}>{fmt(detail.gain_net_annuel||detail.resultats?.economie_annuelle||detail.resultats?.gain_annuel||detail.resultats?.gain_net||0)}€</span></div>
+              <div><span style={{color:C.text3}}>Durée: </span>{detail.parametres?.duree_ans||"—"} ans — Taux: {detail.parametres?.taux||"—"}%</div>
+            </div>
           </div>
-        </div>;
-      })()}
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:C.text3,marginBottom:6,textTransform:"uppercase"}}>Changer le statut</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+          {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
+        </div>
+        <div style={{borderTop:"1px solid "+C.border,paddingTop:12,display:"flex",justifyContent:"flex-end"}}>
+          <Btn small color={C.red} variant="outline" onClick={()=>{sDelSim(detail);sD(null)}}>🗑 Supprimer la simulation</Btn>
+        </div>
+      </div>}
     </Modal>
+    <Toast msg={toast}/>
+    <ConfirmModal open={!!delSim} onClose={()=>sDelSim(null)} title="Supprimer cette simulation ?" message={delSim?`Supprimer la simulation de "${delSim.client_entreprise||delSim.client_nom||"Sans nom"}" ? Cette action est irréversible.`:""} icon="🗑️" onConfirm={()=>deleteSim(delSim)}/>
   </div>}
 
 // === Activites ===
@@ -476,7 +212,7 @@ function Activites(){
   const[ps,sPS]=useState([]);const[users,sUsers]=useState([]);
   const[uf,sUF]=useState("");const[cat,sCat]=useState("all");
   const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};
-  useEffect(()=>{fjA(ADM+"/prospects").then(r=>sPS(r?.data||[]));fjA(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
+  useEffect(()=>{fj(ADM+"/prospects").then(r=>sPS(r?.data||[]));fj(ADM+"/user-stats").then(r=>sUsers(r?.data||[]))},[]);
 
   const TI={appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"};
   const CATS={commercial:["appel","email","rdv","visite","relance"],business:["proposition","signature"],system:["note","tache"]};
@@ -570,9 +306,9 @@ function Activites(){
 // === Admin pages ===
 function Organismes(){const{data,loading,create,update,remove}=useCrud("organismes");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Organismes</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",sigle:"",type:"national",pays:"FR",couleur:"#0d9488",actif:true});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"sigle",label:"Sigle",render:(v,r)=><span style={{fontWeight:700,color:r.couleur}}>{v}</span>},{key:"nom",label:"Nom"},{key:"type",label:"Type",render:v=><Badge color={{national:C.teal,europeen:C.purple,regional:"#7e22ce",fiscal:C.gold}[v]}>{v}</Badge>},{key:"actif",label:"",render:v=>v?"✅":"❌"}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouvel organisme":"Modifier"}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}><Input label="Sigle*" value={f.sigle||""} onChange={v=>F("sigle",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Type" value={f.type||"national"} onChange={v=>F("type",v)} options={[{value:"national",label:"National"},{value:"europeen",label:"Européen"},{value:"regional",label:"Régional"},{value:"fiscal",label:"Fiscal"}]}/><Input label="Couleur" value={f.couleur||""} onChange={v=>F("couleur",v)} type="color"/></div><Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={2}/><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver cet organisme ?" message={del?`Désactiver "${del.sigle} — ${del.nom}" ?`:""} icon="🏛️" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
 
-function Dispositifs(){const{data,loading,create,update,remove}=useCrud("dispositifs");const[orgs,sO]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fjA(ADM+"/organismes").then(r=>sO(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Dispositifs</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",code:"",type_aide:"subvention",taux_min:0,taux_max:50,statut:"actif",organisme_id:orgs[0]?.id});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"code",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11,fontWeight:600}}>{v}</span>},{key:"nom",label:"Nom"},{key:"organisme_id",label:"Org.",render:v=><Badge color={C.navy}>{orgs.find(o=>o.id===v)?.sigle||"?"}</Badge>},{key:"type_aide",label:"Type",render:v=><Badge color={C.teal}>{v?.replace("_"," ")}</Badge>},{key:"taux_max",label:"Taux",render:(v,r)=>v?r.taux_min+"-"+v+"%":"—"},{key:"statut",label:"",render:v=><Badge color={v==="actif"?C.green:C.red}>{v}</Badge>}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code*" value={f.code||""} onChange={v=>F("code",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Organisme" value={f.organisme_id||""} onChange={v=>F("organisme_id",v)} options={orgs.map(o=>({value:o.id,label:o.sigle}))}/><Input label="Type" value={f.type_aide||"subvention"} onChange={v=>F("type_aide",v)} options={["subvention","pret","credit_impot","prime","garantie","reduction_taux"].map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Min%" value={f.taux_min??0} onChange={v=>F("taux_min",parseFloat(v)||0)} type="number"/><Input label="Max%" value={f.taux_max??0} onChange={v=>F("taux_max",parseFloat(v)||0)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver ce dispositif ?" message={del?`Désactiver "${del.code} — ${del.nom}" ?`:""} icon="📋" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
+function Dispositifs(){const{data,loading,create,update,remove}=useCrud("dispositifs");const[orgs,sO]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fj(ADM+"/organismes").then(r=>sO(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Dispositifs</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",code:"",type_aide:"subvention",taux_min:0,taux_max:50,statut:"actif",organisme_id:orgs[0]?.id});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"code",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11,fontWeight:600}}>{v}</span>},{key:"nom",label:"Nom"},{key:"organisme_id",label:"Org.",render:v=><Badge color={C.navy}>{orgs.find(o=>o.id===v)?.sigle||"?"}</Badge>},{key:"type_aide",label:"Type",render:v=><Badge color={C.teal}>{v?.replace("_"," ")}</Badge>},{key:"taux_max",label:"Taux",render:(v,r)=>v?r.taux_min+"-"+v+"%":"—"},{key:"statut",label:"",render:v=><Badge color={v==="actif"?C.green:C.red}>{v}</Badge>}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code*" value={f.code||""} onChange={v=>F("code",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Organisme" value={f.organisme_id||""} onChange={v=>F("organisme_id",v)} options={orgs.map(o=>({value:o.id,label:o.sigle}))}/><Input label="Type" value={f.type_aide||"subvention"} onChange={v=>F("type_aide",v)} options={["subvention","pret","credit_impot","prime","garantie","reduction_taux"].map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Min%" value={f.taux_min??0} onChange={v=>F("taux_min",parseFloat(v)||0)} type="number"/><Input label="Max%" value={f.taux_max??0} onChange={v=>F("taux_max",parseFloat(v)||0)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver ce dispositif ?" message={del?`Désactiver "${del.code} — ${del.nom}" ?`:""} icon="📋" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
 
-function Equipements(){const{data,loading,create,update,remove}=useCrud("equipements");const[cats,sC]=useState([]);const[fiches,sFC]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fjA(ADM+"/categories_equipements").then(r=>sC(r?.data||[]));fjA(ADM+"/fiches_cee").then(r=>sFC(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Équipements</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({libelle:"",code_nomenclature:"",categorie_id:cats[0]?.id,fiche_cee_id:"",gain_energetique_typique:25});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"code_nomenclature",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{v}</span>},{key:"categorie_id",label:"Cat.",render:v=>{const c=cats.find(x=>x.id===v);return c?c.icone+" "+c.nom:"—"}},{key:"libelle",label:"Équipement",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"fiche_cee_id",label:"CEE",render:v=>v?<Badge color={C.teal}>{fiches.find(x=>x.id===v)?.code||"?"}</Badge>:""},{key:"gain_energetique_typique",label:"Gain",render:v=>v?<span style={{color:C.green,fontWeight:700}}>{v}%</span>:""}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code" value={f.code_nomenclature||""} onChange={v=>F("code_nomenclature",v)}/><Input label="Libellé*" value={f.libelle||""} onChange={v=>F("libelle",v)}/><Input label="Catégorie" value={f.categorie_id||""} onChange={v=>F("categorie_id",v)} options={cats.map(c=>({value:c.id,label:(c.icone||"")+" "+c.nom}))}/><Input label="Fiche CEE" value={f.fiche_cee_id||""} onChange={v=>F("fiche_cee_id",v)} options={[{value:"",label:"Aucune"},...fiches.map(x=>({value:x.id,label:x.code}))]}/><Input label="Gain%" value={f.gain_energetique_typique??""} onChange={v=>F("gain_energetique_typique",v?parseFloat(v):null)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{const p={...f};if(!p.fiche_cee_id)p.fiche_cee_id=null;if(m==="new"?await create(p):await update(p.id,p)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver cet équipement ?" message={del?`Désactiver "${del.libelle}" ?`:""} icon="🏭" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
+function Equipements(){const{data,loading,create,update,remove}=useCrud("equipements");const[cats,sC]=useState([]);const[fiches,sFC]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fj(ADM+"/categories_equipements").then(r=>sC(r?.data||[]));fj(ADM+"/fiches_cee").then(r=>sFC(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Équipements</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({libelle:"",code_nomenclature:"",categorie_id:cats[0]?.id,fiche_cee_id:"",gain_energetique_typique:25});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"code_nomenclature",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{v}</span>},{key:"categorie_id",label:"Cat.",render:v=>{const c=cats.find(x=>x.id===v);return c?c.icone+" "+c.nom:"—"}},{key:"libelle",label:"Équipement",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"fiche_cee_id",label:"CEE",render:v=>v?<Badge color={C.teal}>{fiches.find(x=>x.id===v)?.code||"?"}</Badge>:""},{key:"gain_energetique_typique",label:"Gain",render:v=>v?<span style={{color:C.green,fontWeight:700}}>{v}%</span>:""}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code" value={f.code_nomenclature||""} onChange={v=>F("code_nomenclature",v)}/><Input label="Libellé*" value={f.libelle||""} onChange={v=>F("libelle",v)}/><Input label="Catégorie" value={f.categorie_id||""} onChange={v=>F("categorie_id",v)} options={cats.map(c=>({value:c.id,label:(c.icone||"")+" "+c.nom}))}/><Input label="Fiche CEE" value={f.fiche_cee_id||""} onChange={v=>F("fiche_cee_id",v)} options={[{value:"",label:"Aucune"},...fiches.map(x=>({value:x.id,label:x.code}))]}/><Input label="Gain%" value={f.gain_energetique_typique??""} onChange={v=>F("gain_energetique_typique",v?parseFloat(v):null)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{const p={...f};if(!p.fiche_cee_id)p.fiche_cee_id=null;if(m==="new"?await create(p):await update(p.id,p)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver cet équipement ?" message={del?`Désactiver "${del.libelle}" ?`:""} icon="🏭" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
 
 function Catalogue(){const[d,sD]=useState([]);const[l,sL]=useState(true);const[f,sF]=useState({o:"",c:""});useEffect(()=>{fj(CAT+"/catalogue").then(r=>{sD(r?.data||[]);sL(false)})},[]);const orgs=[...new Set(d.map(x=>x.organisme_sigle))].sort();const cats=[...new Set(d.map(x=>x.categorie_code).filter(Boolean))].sort();const fd=d.filter(x=>(!f.o||x.organisme_sigle===f.o)&&(!f.c||x.categorie_code===f.c));return<div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Éligibilités</h2><div style={{display:"flex",gap:10,marginBottom:16}}><select value={f.o} onChange={e=>sF(p=>({...p,o:e.target.value}))} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous</option>{orgs.map(o=><option key={o}>{o}</option>)}</select><select value={f.c} onChange={e=>sF(p=>({...p,c:e.target.value}))} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Toutes</option>{cats.map(c=><option key={c}>{c}</option>)}</select><span style={{marginLeft:"auto",fontSize:12,color:C.text3}}>{fd.length}</span></div><DT loading={l} data={fd} columns={[{key:"organisme_sigle",label:"Org.",render:(v,r)=><span style={{color:r.organisme_couleur,fontWeight:700}}>{v}</span>},{key:"dispositif_code",label:"Dispositif",render:v=><span style={{fontFamily:"monospace",fontSize:11}}>{v}</span>},{key:"equipement_libelle",label:"Équipement",render:v=><span style={{fontWeight:600}}>{v}</span>},{key:"fiche_cee_code",label:"CEE",render:v=>v?<Badge color={C.teal}>{v}</Badge>:""},{key:"taux_subvention",label:"Taux",render:v=>v?<span style={{color:C.green,fontWeight:700}}>{Number(v)}%</span>:""}]}/></div>}
 
@@ -644,16 +380,9 @@ function Connecteurs(){
 }
 
 // === Users Management ===
-// Helper : headers authentifiés avec token JWT + anon key
+// Helpers d'appel authentifié avec gestion d'erreur explicite
 const apiHeaders=()=>({"Content-Type":"application/json",apikey:AK,...(_tok?{Authorization:"Bearer "+_tok}:{})});
-// Helper : appel Supabase REST avec gestion d'erreur explicite
-const supaRest=async(path,opts={})=>{
-  try{
-    const r=await fetch(SU+"/rest/v1/"+path,{headers:apiHeaders(),...opts});
-    if(!r.ok){const e=await r.json().catch(()=>({message:r.status+" "+r.statusText}));return{error:e?.message||r.status}}
-    return r.status===204?{ok:true}:r.json()
-  }catch(e){return{error:e?.message||"Erreur réseau"}}
-};
+const supaRest=async(path,opts={})=>{try{const r=await fetch(SU+"/rest/v1/"+path,{headers:apiHeaders(),...opts});if(!r.ok){const e=await r.json().catch(()=>({message:r.status+" "+r.statusText}));return{error:e?.message||r.status}}return r.status===204?{ok:true}:r.json()}catch(e){return{error:e?.message||"Erreur réseau"}}};
 
 function Users(){
   const[users,sU]=useState([]);const[loading,sL]=useState(true);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[pwModal,sPW]=useState(null);const[newPw,sNPw]=useState("");const[delUser,sDelUser]=useState(null);const[saving,sSaving]=useState(false);
@@ -692,15 +421,15 @@ function Users(){
   };
 
   // Désactivation utilisateur — meilleure pratique SaaS multi-tenant :
-  // 1) PATCH direct Supabase REST → actif=false (fiable, respecte les RLS)
-  // 2) Fallback → edge function delete-user (désactive aussi auth.users côté Supabase)
-  // Suppression définitive de auth.users = réservée au Super Admin (RGPD)
+  // 1) PATCH direct Supabase REST → actif=false (fiable, RLS admin)
+  // 2) Fallback → edge function delete-user (désactive aussi auth.users)
+  // La suppression définitive de auth.users est réservée au Super Admin (RGPD)
   const deleteUser=async(u)=>{
     sSaving(true);
-    // Étape 1 : soft-delete direct via Supabase REST
+    // Étape 1 : soft-delete via Supabase REST (le plus fiable)
     const r1=await supaRest("users?id=eq."+u.id,{method:"PATCH",headers:{...apiHeaders(),"Prefer":"return=minimal"},body:JSON.stringify({actif:false})});
     if(r1?.ok||!r1?.error){
-      // Étape 2 : désactiver aussi dans auth.users via edge function (best effort)
+      // Étape 2 : tenter aussi de désactiver dans auth.users via edge function (best effort)
       fjA(ADM+"/delete-user",{method:"POST",body:JSON.stringify({user_id:u.id})}).catch(()=>{});
       sSaving(false);fl("Utilisateur désactivé ✓");load();return;
     }
@@ -769,7 +498,7 @@ function Users(){
       </div>
     </Modal>
 
-    {/* Confirm désactivation */}
+    {/* Delete / Deactivate Confirm Modal */}
     <ConfirmModal
       open={!!delUser}
       onClose={()=>sDelUser(null)}
@@ -813,17 +542,13 @@ function BaremesFinancement() {
   const [addDurModal, setAddDurModal] = useState(false);
   const [newDur, setNewDur] = useState("");
 
-  const flash = (msg, isErr=false) => { setToast(isErr?"❌ "+msg:"✓ "+msg); setTimeout(() => setToast(""), 4000); };
-  // Use apiHeaders() — correct Supabase auth (no AK-as-Bearer fallback)
-  const hdr = () => apiHeaders();
+  const flash = msg => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+  const hdr = () => ({"apikey":AK,"Authorization":"Bearer "+(_tok||AK),"Content-Type":"application/json"});
 
   const loadGrids = useCallback(async () => {
     setLoading(true);
-    try {
-      const r = await fetch(`${SU}/rest/v1/financing_grids?select=*&order=created_at.desc`, {headers: hdr()});
-      if (!r.ok) { flash("Impossible de charger les barèmes ("+r.status+")", true); setLoading(false); return; }
-      setGrids(await r.json());
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    const r = await fj(`${SU}/rest/v1/financing_grids?select=*&order=created_at.desc`, {headers: hdr()});
+    setGrids(Array.isArray(r) ? r : []);
     setLoading(false);
   }, []);
 
@@ -834,8 +559,7 @@ function BaremesFinancement() {
   const openEditor = async (grid, readOnly = false) => {
     setEditGrid(grid);
     setViewMode(readOnly);
-    const resp = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
-    const r = resp.ok ? await resp.json() : [];
+    const r = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&order=amount_min.asc,duration_months.asc&select=*`, {headers: hdr()});
     const existing = Array.isArray(r) ? r : [];
     const slabMap = {};
     const durSet = new Set();
@@ -863,89 +587,67 @@ function BaremesFinancement() {
   const saveRules = async () => {
     if (!editGrid) return;
     setSaving(true);
-    try {
-      const newRules = [];
-      slabs.forEach(slab => {
-        durations.forEach(dur => {
-          const rate = parseFloat(matrix[slabKey(slab, dur)] || 0);
-          if (rate > 0) newRules.push({
-            grid_id: editGrid.id, amount_min: slab.min, amount_max: slab.max,
-            duration_months: dur, annual_rate_pct: rate, monthly_coefficient: calcCoef(rate, dur)
-          });
+    const newRules = [];
+    slabs.forEach(slab => {
+      durations.forEach(dur => {
+        const rate = parseFloat(matrix[slabKey(slab, dur)] || 0);
+        if (rate > 0) newRules.push({
+          grid_id: editGrid.id, amount_min: slab.min, amount_max: slab.max,
+          duration_months: dur, annual_rate_pct: rate, monthly_coefficient: calcCoef(rate, dur)
         });
       });
-      const r1 = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${editGrid.id}`, {method:"DELETE", headers: hdr()});
-      if (!r1.ok && r1.status !== 204) { flash("Erreur lors de la mise à jour ("+r1.status+")", true); setSaving(false); return; }
-      if (newRules.length > 0) {
-        const r2 = await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body: JSON.stringify(newRules)});
-        if (!r2.ok) { flash("Erreur lors de l'enregistrement des règles ("+r2.status+")", true); setSaving(false); return; }
-      }
-      setDirty(false); flash("Barème sauvegardé");
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
-    setSaving(false);
+    });
+    await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${editGrid.id}`, {method:"DELETE", headers: hdr()});
+    if (newRules.length > 0)
+      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body: JSON.stringify(newRules)});
+    setSaving(false); setDirty(false); flash("✓ Barème sauvegardé");
   };
 
   const activateGrid = async () => {
     if (!activateModal) return;
-    try {
-      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${activateModal.id}`, {
-        method:"PATCH", headers: hdr(), body: JSON.stringify({status:"active", effective_date: activateDate})
-      });
-      if (!r.ok && r.status !== 204) { flash("Erreur d'activation ("+r.status+")", true); return; }
-      setActivateModal(null);
-      flash("Barème activé — simulateur mis à jour");
-      loadGrids();
-      if (editGrid?.id === activateModal.id) setEditGrid(p=>({...p, status:"active", effective_date: activateDate}));
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${activateModal.id}`, {
+      method:"PATCH", headers: hdr(), body: JSON.stringify({status:"active", effective_date: activateDate})
+    });
+    setActivateModal(null);
+    flash("✅ Barème activé — simulateur mis à jour");
+    loadGrids();
+    if (editGrid?.id === activateModal.id) setEditGrid(p=>({...p, status:"active", effective_date: activateDate}));
   };
 
   const patchGrid = async (grid, payload) => {
-    try {
-      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"PATCH", headers: hdr(), body: JSON.stringify(payload)});
-      if (!r.ok && r.status !== 204) { flash("Erreur de mise à jour ("+r.status+")", true); return; }
-      loadGrids();
-      if (editGrid?.id === grid.id) setEditGrid(p=>({...p,...payload}));
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"PATCH", headers: hdr(), body: JSON.stringify(payload)});
+    loadGrids();
+    if (editGrid?.id === grid.id) setEditGrid(p=>({...p,...payload}));
   };
 
   const deleteGrid = async grid => {
-    try {
-      const r = await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"DELETE", headers: hdr()});
-      if (!r.ok && r.status !== 204) { flash("Erreur de suppression ("+r.status+")", true); return; }
-      setDeleteModal(null); flash("Barème supprimé");
-      if (editGrid?.id === grid.id) setEditGrid(null);
-      loadGrids();
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    await fetch(`${SU}/rest/v1/financing_grids?id=eq.${grid.id}`, {method:"DELETE", headers: hdr()});
+    setDeleteModal(null); flash("Barème supprimé");
+    if (editGrid?.id === grid.id) setEditGrid(null);
+    loadGrids();
   };
 
   const createGrid = async () => {
-    try {
-      const r = await fetch(`${SU}/rest/v1/financing_grids`, {
-        method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
-        body: JSON.stringify({name:newGridForm.name, effective_date:newGridForm.effective_date||new Date().toISOString().split("T")[0], notes:newGridForm.notes, status:"draft"})
-      });
-      if (!r.ok) { const e=await r.json().catch(()=>({})); flash("Erreur de création : "+(e?.message||r.status), true); return; }
-      const [g] = await r.json();
-      if (g?.id) { setNewGridModal(false); flash("Barème créé"); loadGrids(); openEditor(g); }
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    const r = await fetch(`${SU}/rest/v1/financing_grids`, {
+      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+      body: JSON.stringify({name:newGridForm.name, effective_date:newGridForm.effective_date||new Date().toISOString().split("T")[0], notes:newGridForm.notes, status:"draft"})
+    });
+    const [g] = await r.json();
+    if (g?.id) { setNewGridModal(false); flash("Barème créé ✓"); loadGrids(); openEditor(g); }
   };
 
   const duplicateGrid = async grid => {
-    try {
-      const srcResp = await fetch(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&select=*`, {headers: hdr()});
-      const srcRules = srcResp.ok ? await srcResp.json() : [];
-      const resp = await fetch(`${SU}/rest/v1/financing_grids`, {
-        method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
-        body: JSON.stringify({name:grid.name+" (copie)", effective_date:new Date().toISOString().split("T")[0], notes:grid.notes, status:"draft"})
-      });
-      if (!resp.ok) { flash("Erreur de duplication ("+resp.status+")", true); return; }
-      const [newG] = await resp.json();
-      if (newG?.id && srcRules?.length > 0) {
-        const newRules = srcRules.map(({id,grid_id,created_at,...rest})=>({...rest, grid_id:newG.id}));
-        await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body:JSON.stringify(newRules)});
-      }
-      flash("Barème dupliqué"); loadGrids();
-    } catch(e) { flash("Erreur réseau : "+e.message, true); }
+    const srcRules = await fj(`${SU}/rest/v1/financing_rules?grid_id=eq.${grid.id}&select=*`, {headers: hdr()});
+    const resp = await fetch(`${SU}/rest/v1/financing_grids`, {
+      method:"POST", headers:{...hdr(),"Prefer":"return=representation"},
+      body: JSON.stringify({name:grid.name+" (copie)", effective_date:new Date().toISOString().split("T")[0], notes:grid.notes, status:"draft"})
+    });
+    const [newG] = await resp.json();
+    if (newG?.id && srcRules?.length > 0) {
+      const newRules = srcRules.map(({id,grid_id,created_at,...rest})=>({...rest, grid_id:newG.id}));
+      await fetch(`${SU}/rest/v1/financing_rules`, {method:"POST", headers:{...hdr(),"Prefer":"return=minimal"}, body:JSON.stringify(newRules)});
+    }
+    flash("Barème dupliqué ✓"); loadGrids();
   };
 
   const ST = {draft:{l:"Brouillon",c:C.text3}, active:{l:"Actif",c:C.green}, archived:{l:"Archivé",c:C.text3}};
@@ -1224,7 +926,7 @@ function TenantBranding(){
     sSaving(true);sErr("");
     const brand_config={name:f.name,tagline:f.tagline,logo:f.logo,colors:f.colors};
     const payload={nom:f.name,email_support:f.email_support,logo_url:f.logo_url,brand_config};
-    const r=await fjA(ADM+"/tenants/"+TID,{method:"PUT",body:JSON.stringify(payload)});
+    const r=await fj(ADM+"/tenants/"+TID,{method:"PUT",body:JSON.stringify(payload)});
     if(r&&!r.error){sT("✓ Branding sauvegardé");setTimeout(()=>sT(""),3000)}
     else sErr(r?.error||"Erreur lors de la sauvegarde — vérifiez que admin-api supporte PUT /tenants/:id");
     sSaving(false);
@@ -1332,7 +1034,7 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
       const r=await au.signIn(e,p);if(r.error)sErr(r.error_description||"Erreur");else if(r.access_token){
         // Récupère le tenant_id de cet utilisateur
         _tok=r.access_token;
-        const ur=await fjA(ADM+"/users?auth_id="+r.user.id).catch(()=>null);
+        const ur=await fjA(ADM+"/users?auth_id=eq."+r.user.id).catch(()=>null);
         const tid=ur?.data?.[0]?.tenant_id;
         if(tid){localStorage.setItem("gef_tenant_id",tid);}
         au.set({access_token:r.access_token,user:r.user,tenant_id:tid||TID});
@@ -1384,33 +1086,88 @@ function Login({onLogin}){const[mode,sMode]=useState("login");const[e,sE]=useSta
     </div>
   </div></div>}
 
+// === Supervision Component ===
+function Supervision(){
+  const[prospects,setP]=useState([]);const[loading,setL]=useState(true);
+  useEffect(()=>{
+    if(!_tok)return;
+    fetch(SUPA+"/rest/v1/prospects?select=id,nom,prenom,entreprise,email,statut,score_eligibilite,created_at&order=created_at.desc&limit=50",{headers:{"apikey":ANON,"Authorization":"Bearer "+_tok}})
+      .then(r=>r.json()).then(d=>{if(Array.isArray(d))setP(d);setL(false)}).catch(()=>setL(false));
+  },[]);
+  const byStatus={};prospects.forEach(p=>{const s=p.statut||"nouveau";byStatus[s]=(byStatus[s]||0)+1;});
+  const statuses=[["prospect","🔵"],["qualification","🟡"],["proposition","🟠"],["negociation","🔴"],["gagne","🟢"],["perdu","⚫"]];
+  const Card=({title,value,sub,color})=><div style={{background:"#fff",borderRadius:10,padding:"16px 20px",border:"1px solid #e2e8f0",borderLeft:"4px solid "+color,flex:1,minWidth:140}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{title}</div>
+    <div style={{fontSize:26,fontWeight:800,color:"#0f2b46"}}>{value}</div>
+    {sub&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{sub}</div>}
+  </div>;
+  return<div style={{maxWidth:900}}>
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:18,fontWeight:800,color:"#0f2b46",marginBottom:4}}>Supervision commerciale</div>
+      <div style={{fontSize:13,color:"#64748b"}}>Vue consolidée des dossiers et propositions actifs</div>
+    </div>
+    {/* KPI row */}
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:24}}>
+      <Card title="Dossiers actifs" value={prospects.length} sub="clients suivis" color="#0d9488"/>
+      <Card title="Propositions" value={byStatus["proposition"]||0} sub="en attente de réponse" color="#f59e0b"/>
+      <Card title="Gagnés" value={byStatus["gagne"]||0} sub="contrats signés" color="#059669"/>
+      <Card title="En négociation" value={byStatus["negociation"]||0} sub="à finaliser" color="#dc2626"/>
+    </div>
+    {/* Pipeline par statut */}
+    <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"16px 20px",marginBottom:20}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#0f2b46",marginBottom:12}}>Répartition pipeline</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {statuses.map(([s,em])=><div key={s} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"8px 14px",textAlign:"center",minWidth:90}}>
+          <div style={{fontSize:18}}>{em}</div>
+          <div style={{fontSize:20,fontWeight:800,color:"#0f2b46"}}>{byStatus[s]||0}</div>
+          <div style={{fontSize:10,color:"#94a3b8",textTransform:"capitalize",marginTop:2}}>{s}</div>
+        </div>)}
+      </div>
+    </div>
+    {/* Derniers dossiers */}
+    <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"16px 20px"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#0f2b46",marginBottom:12}}>Derniers dossiers modifiés</div>
+      {loading?<div style={{color:"#94a3b8",fontSize:13}}>Chargement…</div>:prospects.length===0?<div style={{color:"#94a3b8",fontSize:13}}>Aucun dossier</div>:
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{borderBottom:"1px solid #e2e8f0"}}>
+          {["Entreprise","Contact","Statut","Score","Date"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,textTransform:"uppercase"}}>{h}</th>)}
+        </tr></thead>
+        <tbody>{prospects.slice(0,15).map(p=><tr key={p.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+          <td style={{padding:"8px 10px",fontWeight:600,color:"#0f2b46"}}>{p.entreprise||"—"}</td>
+          <td style={{padding:"8px 10px",color:"#64748b"}}>{[p.prenom,p.nom].filter(Boolean).join(" ")||p.email||"—"}</td>
+          <td style={{padding:"8px 10px"}}><span style={{background:"#f0fdf4",color:"#065f46",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{p.statut||"nouveau"}</span></td>
+          <td style={{padding:"8px 10px",color:"#0d9488",fontWeight:700}}>{p.score_eligibilite!=null?p.score_eligibilite+"%":"—"}</td>
+          <td style={{padding:"8px 10px",color:"#94a3b8"}}>{p.created_at?new Date(p.created_at).toLocaleDateString("fr-FR"):"—"}</td>
+        </tr>)}</tbody>
+      </table>}
+    </div>
+  </div>;
+}
+
 // === Layout ===
 const NAV=[
   {s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},
   {s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},
+  {s:"SUPERVISION",items:[{id:"supervision",l:"Supervision",i:"👁"}]},
   {s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}
 ];
-function Layout({user,onLogout}){
-  const[page,sP]=useState("crm");const[sb,sSb]=useState(true);
-  const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);
-  const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding};
-  const Pg=PG[page]||CRMDash;
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding,supervision:Supervision};const Pg=PG[page]||CRMDash;
 /* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
 return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
-{/* SIDEBAR — fixed height, sticky, overflow hidden */}
-<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)",height:"100vh",overflow:"hidden",position:"sticky",top:0}}>
+{/* SIDEBAR — fixed height, sticky scroll */}
+<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)",height:"100vh",position:"sticky",top:0,overflow:"hidden"}}>
 {/* Header — logo block */}
-<div style={{padding:sb?"20px 16px":"20px 12px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
+<div style={{padding:sb?"20px 16px":"20px 12px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.1)",flexShrink:0}}>
 <div style={{width:36,height:36,borderRadius:8,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.navy,flexShrink:0}}>L</div>
 {sb&&<div><div style={{fontSize:14,fontWeight:700,color:"#fff"}}>Lihtea</div><div style={{fontSize:9,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}
 </div>
-{/* Nav items */}
-<nav style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+{/* Nav items — scrollable */}
+<nav style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",overflowY:"auto",overflowX:"hidden"}}>
 {NAV.map(section=><div key={section.s}>
 {sb&&<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"12px 16px 4px",letterSpacing:"0.1em",textTransform:"uppercase"}}>{section.s}</div>}
 {section.items.map(item=>{const isActive=page===item.id;return<button key={item.id} onClick={()=>sP(item.id)} style={{
-display:"flex",alignItems:"center",gap:8,
-padding:sb?"10px 14px":"10px 8px",
+display:"flex",alignItems:"center",gap:12,
+padding:sb?"14px 16px":"14px 12px",
 justifyContent:sb?"flex-start":"center",
 borderRadius:0,border:"none",borderLeft:isActive?"4px solid #2dd4bf":"4px solid transparent",
 cursor:"pointer",width:"100%",
@@ -1420,18 +1177,18 @@ fontSize:13,fontWeight:isActive?700:500,fontFamily:"inherit",
 transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",whiteSpace:"nowrap",
 boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 }}>
-<span style={{fontSize:16,flexShrink:0,filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
+<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
 {sb&&<span>{item.l}</span>}
 </button>})}
 </div>)}
 </nav>
-{/* Footer — user info + controls, pinned at bottom */}
+{/* Footer — user info + controls, fixed at bottom */}
 <div style={{flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
 {sb&&user&&<div style={{padding:"10px 16px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
 <div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
 </div>}
 <div style={{display:"flex",gap:6,padding:sb?"4px 12px 12px":"8px 12px 12px"}}>
-<button onClick={()=>sSb(p=>!p)} title={sb?"Réduire le menu":"Agrandir"} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
+<button onClick={()=>sSb(p=>!p)} title={sb?"Réduire":"Agrandir"} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
 <button onClick={onLogout} title="Déconnexion" style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
 </div>
 </div>
@@ -1451,34 +1208,4 @@ boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
 </div>}
 
 // === App ===
-export default function App(){
-  const[s,sS]=useState(null);const[chk,sChk]=useState(true);
-  const doLogout=()=>{au.clear();_tok=null;_onUnauth=null;localStorage.removeItem("gef_tenant_id");sS(null)};
-  useEffect(()=>{
-    // ── Cross-domain SSO: accept ?access_token= from Simulateur ──
-    const params=new URLSearchParams(window.location.search);
-    const urlTok=params.get("access_token");
-    const urlRef=params.get("refresh_token")||"";
-    if(urlTok){
-      window.history.replaceState({},"",window.location.pathname);
-      au.getUser(urlTok).then(u=>{
-        if(u?.id){const sess={access_token:urlTok,refresh_token:urlRef,user:u};au.set(sess);_tok=urlTok;_onUnauth=doLogout;sS(sess);}
-        sChk(false);
-      }).catch(()=>sChk(false));
-      return;
-    }
-    const sv=au.get();
-    if(sv?.access_token){
-      _tok=sv.access_token;
-      _onUnauth=doLogout; // activer l'intercepteur 401
-      au.getUser(sv.access_token).then(u=>{
-        if(u?.id)sS({...sv,user:u});
-        else doLogout();
-        sChk(false);
-      }).catch(()=>{doLogout();sChk(false)});
-    }else sChk(false);
-  },[]);
-  if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;
-  if(!s)return<Login onLogin={r=>{_tok=r.access_token;_onUnauth=doLogout;sS({access_token:r.access_token,user:r.user})}}/>;
-  return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}doLogout()}}/>;
-}
+export default function App(){const[s,sS]=useState(null);const[chk,sChk]=useState(true);useEffect(()=>{const sv=au.get();if(sv?.access_token){_tok=sv.access_token;au.getUser(sv.access_token).then(u=>{if(u?.id)sS({...sv,user:u});else{au.clear();_tok=null;}sChk(false)}).catch(()=>{au.clear();_tok=null;sChk(false)})}else sChk(false)},[]);if(chk)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy}}><div style={{width:48,height:48,borderRadius:14,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:C.navy}}>L</div></div>;if(!s)return<Login onLogin={r=>sS({access_token:r.access_token,user:r.user})}/>;return<Layout user={s.user} onLogout={async()=>{try{await au.signOut(s.access_token)}catch{}au.clear();_tok=null;localStorage.removeItem("gef_tenant_id");sS(null)}}/>}
