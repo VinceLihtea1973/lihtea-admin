@@ -50,8 +50,48 @@ function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Suppri
     </div>
   </div>
 }
-function useCrud(t){const[d,sD]=useState([]);const[l,sL]=useState(true);const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);useEffect(()=>{r()},[r]);return{data:d,loading:l,refresh:r,create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},remove:async id=>{try{const h={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};const res=await fetch(ADM+"/"+t+"/"+id,{method:"DELETE",headers:h});if(res.ok){// Broadcast deletion so simulator can refresh in real time
-if(t==="prospects"){try{localStorage.setItem("gef_prospect_deleted",JSON.stringify({id,ts:Date.now()}))}catch{}}await r();return true}const body=await res.json().catch(()=>({}));console.error("[useCrud] DELETE failed:",res.status,body);return false}catch(e){console.error("[useCrud] DELETE error:",e);return false}}}}
+// Broadcast deletion cross-tab so simulator can refresh its client list
+const _broadcastDeletion=(table,id)=>{if(table==="prospects"){try{localStorage.setItem("gef_prospect_deleted",JSON.stringify({id,ts:Date.now()}))}catch{}}};
+
+function useCrud(t){
+  const[d,sD]=useState([]);
+  const[l,sL]=useState(true);
+  const r=useCallback(async()=>{sL(true);const x=await fjA(ADM+"/"+t);sD(x?.data||[]);sL(false)},[t]);
+  useEffect(()=>{r()},[r]);
+
+  // DELETE helper — double stratégie :
+  //   1. Edge function  (ADM/table/id)         — nécessite que le handler DELETE soit implémenté
+  //   2. Supabase REST API directe (SU/rest/v1) — fallback fiable via RLS + anon key + JWT
+  const _delete=async id=>{
+    const authH={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};
+
+    // Tentative 1 — edge function
+    try{
+      const res=await fetch(ADM+"/"+t+"/"+id,{method:"DELETE",headers:authH});
+      if(res.ok){_broadcastDeletion(t,id);await r();return{ok:true}}
+      console.warn("[useCrud] edge DELETE →",res.status,"(tentative REST API)");
+    }catch(e){console.warn("[useCrud] edge DELETE error:",e)}
+
+    // Tentative 2 — Supabase REST API directe (bypasse l'edge function)
+    try{
+      const restH={"apikey":AK,...authH,"Prefer":"return=minimal"};
+      const res2=await fetch(SU+"/rest/v1/"+t+"?id=eq."+id,{method:"DELETE",headers:restH});
+      if(res2.ok){_broadcastDeletion(t,id);await r();return{ok:true}}
+      const errBody=await res2.json().catch(()=>({}));
+      console.error("[useCrud] REST DELETE →",res2.status,errBody);
+      return{ok:false,status:res2.status,msg:errBody?.message||errBody?.error||""};
+    }catch(e){
+      console.error("[useCrud] REST DELETE error:",e);
+      return{ok:false,status:0,msg:String(e)}
+    }
+  };
+
+  return{data:d,loading:l,refresh:r,
+    create:async rec=>{const x=await fjA(ADM+"/"+t,{method:"POST",body:JSON.stringify(rec)});if(x?.data){await r();return true}return false},
+    update:async(id,rec)=>{const x=await fjA(ADM+"/"+t+"/"+id,{method:"PUT",body:JSON.stringify(rec)});if(x?.updated||x?.data){await r();return true}return false},
+    remove:async id=>{const res=await _delete(id);return res.ok===true}
+  }
+}
 
 // === CRM Dashboard ===
 function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
@@ -134,7 +174,15 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
   const load=()=>{sL(true);const q=uf?`?user_id=${uf}`:"";fj(ADM+"/pipeline"+q).then(r=>{sP(r);sL(false)})};
   useEffect(()=>{load();fj(ADM+"/user-stats").then(r=>sU(r?.data||[]))},[uf]);
   const updateStatus=async(simId,newStatus)=>{await fjA(ADM+"/simulations/"+simId,{method:"PUT",body:JSON.stringify({statut:newStatus})});load()};
-  const deleteSim=async(sim)=>{const x=await fjA(ADM+"/simulations/"+sim.id,{method:"DELETE"});if(x&&!x.error){ft("Simulation supprimée ✓");sD(null);load()}else ft("Erreur lors de la suppression")};
+  const deleteSim=async(sim)=>{
+    const h={"Content-Type":"application/json",...(_tok?{Authorization:"Bearer "+_tok}:{})};
+    // Tentative 1 — edge function
+    let ok=false;
+    try{const res=await fetch(ADM+"/simulations/"+sim.id,{method:"DELETE",headers:h});ok=res.ok;}catch{}
+    // Tentative 2 — Supabase REST API directe
+    if(!ok){try{const res2=await fetch(SU+"/rest/v1/simulations?id=eq."+sim.id,{method:"DELETE",headers:{"apikey":AK,...h,"Prefer":"return=minimal"}});ok=res2.ok;}catch{}}
+    if(ok){ft("Simulation supprimée ✓");sD(null);load()}else ft("Erreur lors de la suppression");
+  };
   if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
   const g=p?.grouped||{};const total=p?.count||0;const totVal=Object.values(g).flat().reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);
   return<div>
