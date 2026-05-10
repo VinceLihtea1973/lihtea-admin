@@ -190,6 +190,9 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
 
 // === Pipeline ===
 function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[users,sU]=useState([]);const[uf,sUF]=useState("");const[detail,sD]=useState(null);const[dragId,sDragId]=useState(null);const[dragOver,sDragOver]=useState(null);const[delSim,sDelSim]=useState(null);const[toast,sToast]=useState("");const ft=x=>{sToast(x);setTimeout(()=>sToast(""),3000)};
+  // ── Vue Kanban / Liste (persistée) ──
+  const[view,sView]=useState(()=>localStorage.getItem("admin_pipeline_view")||"kanban");
+  const switchView=v=>{sView(v);localStorage.setItem("admin_pipeline_view",v)};
   const load=()=>{sL(true);const q=uf?`?user_id=${uf}`:"";fj(ADM+"/pipeline"+q).then(r=>{sP(r);sL(false)})};
   useEffect(()=>{load();fj(ADM+"/user-stats").then(r=>sU(r?.data||[]))},[uf]);
   const updateStatus=async(simId,newStatus)=>{await fjA(ADM+"/simulations/"+simId,{method:"PUT",body:JSON.stringify({statut:newStatus})});load()};
@@ -204,14 +207,68 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
   };
   if(l)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;
   const g=p?.grouped||{};const total=p?.count||0;const totVal=Object.values(g).flat().reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);
+  // Helper format
+  const fmtK=n=>n>=1e6?(n/1e6).toFixed(1).replace(".",",")+" M€":n>=1000?Math.round(n/1000)+" k€":n>0?Math.round(n)+" €":"—";
+  // Liste plate triée par statut (ordre kanban) puis montant décroissant — pour la vue tableau
+  const stageOrder={brouillon:0,envoyee:1,en_cours:2,financee:3,abandonnee:4};
+  const flatRows=Object.values(g).flat().slice().sort((a,b)=>{const oa=stageOrder[a.statut]??99,ob=stageOrder[b.statut]??99;if(oa!==ob)return oa-ob;return (Number(b.parametres?.investissement)||0)-(Number(a.parametres?.investissement)||0)});
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-      <div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Pipeline</h2><p style={{fontSize:13,color:C.text3}}>{total} simulations — {totVal?Math.round(totVal/1000)+"k€":"0€"} volume total</p></div>
-      <div style={{display:"flex",gap:8}}>
-        <select value={uf} onChange={e=>{sUF(e.target.value)}} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
+      <div><p style={{fontSize:13,color:C.text3,margin:0}}>{total} simulations — {totVal?Math.round(totVal/1000)+"k€":"0€"} volume total</p></div>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        {/* Toggle Kanban / Liste */}
+        <div style={{display:"inline-flex",background:C.surface,border:"1px solid "+C.border,borderRadius:R.sm,padding:2}}>
+          <button onClick={()=>switchView("kanban")} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 12px",border:"none",background:view==="kanban"?C.tealBg:"transparent",color:view==="kanban"?C.teal:C.text2,fontFamily:F.body,fontSize:12,fontWeight:view==="kanban"?600:500,borderRadius:4,cursor:"pointer",transition:"all .15s"}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/><rect x="19" y="3" width="2" height="9" rx="1"/></svg>
+            Kanban
+          </button>
+          <button onClick={()=>switchView("liste")} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 12px",border:"none",background:view==="liste"?C.tealBg:"transparent",color:view==="liste"?C.teal:C.text2,fontFamily:F.body,fontSize:12,fontWeight:view==="liste"?600:500,borderRadius:4,cursor:"pointer",transition:"all .15s"}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
+            Liste
+          </button>
+        </div>
+        <select value={uf} onChange={e=>{sUF(e.target.value)}} style={{padding:"7px 12px",borderRadius:R.sm,border:"1px solid "+C.border,fontSize:12,fontFamily:F.body,background:C.surface}}><option value="">Tous les users</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select>
         <Btn small color={C.teal} variant="outline" onClick={load}>Actualiser</Btn>
       </div>
     </div>
+    {view==="liste"?
+    /* ── VUE LISTE — Tableau ── */
+    <div style={{background:C.surface,border:"1px solid "+C.border,borderRadius:R.lg,boxShadow:SH.sm,overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontFamily:F.body}}>
+          <thead><tr>
+            {["Client","Équipement","Statut","Investissement","Aides","Loyer/mois","Date","Action"].map((h,i)=><th key={i} style={{padding:"12px 16px",textAlign:i>=3&&i<=5?"right":"left",fontSize:10,fontWeight:600,color:C.text3,textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid "+C.border,background:C.bg,whiteSpace:"nowrap"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+          {flatRows.length===0?<tr><td colSpan={8} style={{padding:48,textAlign:"center",color:C.text3,fontSize:13}}>Aucune simulation dans le pipeline.</td></tr>:flatRows.map(it=>{
+            const inv=Number(it.parametres?.investissement)||Number(it.investissement)||0;
+            const aides=Number(it.montant_aides_total)||Number(it.resultats?.total_aides)||0;
+            const loyer=Number(it.montant_loyer_mensuel)||Number(it.resultats?.mensualite_nette)||Number(it.resultats?.loyer_mensuel)||0;
+            const equip=it.parametres?.equipement_label||it.equipement_libelle||"—";
+            const sc=PC[it.statut]||C.text3;
+            return<tr key={it.id} onClick={()=>sD(it)} style={{cursor:"pointer",borderBottom:"1px solid "+C.border,transition:"background .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <td style={{padding:"12px 16px",fontSize:12}}>
+                <div style={{fontWeight:700,color:C.navy}}>{it.client_entreprise||it.prospect_raison_sociale||it.client_nom||"Sans nom"}</div>
+                {it.client_taille&&<div style={{fontSize:10,color:C.text3,marginTop:2,textTransform:"uppercase"}}>{it.client_taille}</div>}
+              </td>
+              <td style={{padding:"12px 16px",fontSize:12,color:C.text2}}>{equip}</td>
+              <td style={{padding:"12px 16px"}}><span style={{display:"inline-flex",fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:sc+"1a",color:sc,textTransform:"uppercase",letterSpacing:"0.04em",border:"1px solid "+sc+"33"}}>{PL[it.statut]||it.statut}</span></td>
+              <td style={{padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:F.mono,textAlign:"right",color:C.navy}}>{fmtK(inv)}</td>
+              <td style={{padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:F.mono,textAlign:"right",color:C.green}}>{fmtK(aides)}</td>
+              <td style={{padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:F.mono,textAlign:"right",color:C.text2}}>{fmtK(loyer)}</td>
+              <td style={{padding:"12px 16px",fontSize:11,color:C.text3,whiteSpace:"nowrap"}}>{fa(it.updated_at||it.created_at)}</td>
+              <td style={{padding:"12px 16px",textAlign:"right"}}>
+                <Btn small variant="outline" color={C.teal} onClick={e=>{e.stopPropagation();sD(it)}}>Voir →</Btn>
+              </td>
+            </tr>})}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    :
+    /* ── VUE KANBAN — Original ── */
     <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>{["brouillon","envoyee","en_cours","financee","abandonnee"].map(s=>{const items=g[s]||[];const tot=items.reduce((a,i)=>a+(Number(i.parametres?.investissement)||Number(i.investissement)||0),0);return<div key={s} onDragOver={e=>{e.preventDefault();sDragOver(s)}} onDragLeave={()=>sDragOver(null)} onDrop={e=>{e.preventDefault();sDragOver(null);if(dragId&&dragId!==s){const simId=e.dataTransfer.getData("simId");if(simId)updateStatus(simId,s)}sDragId(null)}} style={{minWidth:240,flex:1,background:dragOver===s?PC[s]+"10":C.surface,borderRadius:12,border:dragOver===s?"2px dashed "+PC[s]:"1px solid "+C.border,overflow:"hidden",transition:"all 0.2s"}}>
       <div style={{padding:"10px 14px",borderBottom:"2px solid "+(PC[s]||C.text3),display:"flex",justifyContent:"space-between",alignItems:"center",background:PC[s]+"08"}}>
         <div><div style={{fontSize:12,fontWeight:700,color:PC[s]}}>{PL[s]}</div><div style={{fontSize:10,color:C.text3}}>{items.length} dossier{items.length>1?"s":""}</div></div>
@@ -235,6 +292,7 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
           </div>
         </div>})}</div>
     </div>})}</div>
+    }
     {/* Detail Modal */}
     <Modal open={!!detail} onClose={()=>sD(null)} title={"Simulation — "+(detail?.client_entreprise||detail?.client_nom||"Sans nom")} wide>
       {detail&&<div>
@@ -1213,13 +1271,35 @@ function Supervision(){
 }
 
 // === Layout ===
+// ── Icônes SVG line (style v5 — cohérent avec le simulateur) ──
+const ICN = {
+  dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  prospects: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  pipeline: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>,
+  activites: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.49 12 19.79 19.79 0 0 1 1.42 3.35 2 2 0 0 1 3.4 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+  users: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
+  taux: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  equipements: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22h20"/><path d="M3 22V11l7-5 7 5v11"/><path d="M9 22v-7h2v7"/><path d="M13 22v-4h2v4"/><circle cx="17" cy="9" r="1"/></svg>,
+  branding: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="13.5" r="2.5"/><circle cx="8.5" cy="17.5" r="2.5"/><circle cx="6.5" cy="9.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.5 0 2-1 2-2 0-.5-.2-1-.5-1.5-.3-.5-.5-1-.5-1.5 0-1 .8-1.8 1.8-1.8H17c2.8 0 5-2.2 5-5C22 6 17.5 2 12 2z"/></svg>,
+};
+
 const NAV=[
-  {s:"CRM",items:[{id:"crm",l:"Dashboard",i:"📊"},{id:"prospects",l:"Prospects",i:"👥"},{id:"pipeline",l:"Pipeline",i:"🔀"},{id:"activites",l:"Activités",i:"📞"}]},
-  {s:"MON ÉQUIPE",items:[{id:"users",l:"Utilisateurs",i:"👤"},{id:"taux",l:"Barèmes",i:"📊"}]},
-  {s:"SUPERVISION",items:[{id:"supervision",l:"Supervision",i:"👁"}]},
-  {s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}
+  {s:"CRM",items:[
+    {id:"crm",l:"Dashboard",i:ICN.dashboard},
+    {id:"prospects",l:"Prospects",i:ICN.prospects},
+    {id:"pipeline",l:"Pipeline",i:ICN.pipeline},
+    {id:"activites",l:"Activités",i:ICN.activites}
+  ]},
+  {s:"MON ÉQUIPE",items:[
+    {id:"users",l:"Utilisateurs",i:ICN.users},
+    {id:"taux",l:"Barèmes",i:ICN.taux}
+  ]},
+  {s:"MON ESPACE",items:[
+    {id:"equipements",l:"Équipements",i:ICN.equipements},
+    {id:"branding",l:"Branding",i:ICN.branding}
+  ]}
 ];
-function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding,supervision:Supervision};const Pg=PG[page]||CRMDash;
+function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding};const Pg=PG[page]||CRMDash;
 /* ── V5 SHELL : topbar 60px navy + sidebar 240px claire + main beige warm ── */
 const initials = ((user?.email||"VG").slice(0,2)||"VG").toUpperCase();
 return<div style={{height:"100vh",display:"flex",flexDirection:"column",fontFamily:F.body,color:C.text,background:C.bg,overflow:"hidden"}}>
@@ -1260,7 +1340,7 @@ marginBottom:2
 }}
 onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background=C.bg;e.currentTarget.style.color=C.text}}}
 onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background="transparent";e.currentTarget.style.color=C.text2}}}>
-<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",opacity:isActive?1:0.7}}>{item.i}</span>
+<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,minWidth:20,opacity:isActive?1:0.7}}>{item.i}</span>
 {sb&&<span>{item.l}</span>}
 </button>})}
 </div>)}
@@ -1280,7 +1360,7 @@ onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background="transparent";e
   {/* Page-header v5 */}
   <div style={{marginBottom:24,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
     <div style={{display:"flex",alignItems:"center",gap:10}}>
-      <span style={{fontSize:20}}>{nav?.i}</span>
+      <span style={{display:"inline-flex",alignItems:"center",color:C.teal,opacity:0.85}}>{nav?.i}</span>
       <h1 style={{fontSize:22,fontWeight:700,color:C.navy,letterSpacing:"-0.4px",margin:0,fontFamily:F.body}}>{nav?.l}</h1>
     </div>
     <div style={{display:"flex",gap:8}}>
