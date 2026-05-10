@@ -4,7 +4,26 @@ const AK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI
 const API = `${SU}/functions/v1`;
 const CAT = `${API}/catalogue-api`, ADM = `${API}/admin-api`, CON = `${API}/api-connectors`, AUTH = `${SU}/auth/v1`;
 const TID = localStorage.getItem("gef_tenant_id") || "17a567c3-5369-4035-b771-dac26f496d4e";
-const C = {navy:"#0f2b46",navyL:"#1a3d5c",teal:"#0d9488",tealB:"#14b8a6",tealBg:"#f0fdfa",gold:"#d4a843",bg:"#f6f8fb",surface:"#fff",border:"#e1e7ef",text:"#1a2332",text2:"#4a5568",text3:"#8896a7",red:"#dc2626",green:"#059669",purple:"#7c3aed",blue:"#2563eb",orange:"#ea580c"};
+// ── PALETTE V5 ── (alignée sur le simulateur app.lihtea.com / refonte ScoreFinance + teal Lihtea)
+// Navy #0B1D35 + warm beige bg #F7F6F3 + teal Lihtea #14b8a6 en accent
+const C = {
+  navy:"#0B1D35", navyL:"#163354",
+  teal:"#0d9488", tealB:"#14b8a6", tealBg:"#E0F5EE",
+  gold:"#14b8a6",                     // alias gold → teal v5 (cohérence marque green finance)
+  bg:"#F7F6F3",                       // fond beige warm (signature v5)
+  surface:"#FFFFFF",
+  border:"#EDECEA", borderStrong:"#D3D1C7",
+  text:"#2C2C2A", text2:"#5F5E5A", text3:"#888780",
+  red:"#B02020", redBg:"#FDEAEA",
+  green:"#0E7A5F", greenBg:"#E0F5EE",
+  amber:"#C07A10", amberBg:"#FDF3E0",
+  purple:"#7c3aed", blue:"#2563eb", orange:"#ea580c"
+};
+// Ombres et radius v5
+const SH = { sm:"0 1px 3px rgba(11,29,53,.08)", md:"0 4px 16px rgba(11,29,53,.10)" };
+const R  = { sm:6, md:10, lg:16 };
+// Fonts v5 — Sora pour l'UI, DM Mono pour les chiffres
+const F  = { body:"'Sora','DM Sans',-apple-system,BlinkMacSystemFont,sans-serif", mono:"'DM Mono','JetBrains Mono','SF Mono',monospace" };
 const SC = {nouveau:C.blue,qualifie:C.teal,en_discussion:C.orange,proposition:C.purple,negociation:C.gold,gagne:C.green,perdu:C.red,inactif:C.text3};
 const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
 const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
@@ -1201,58 +1220,77 @@ const NAV=[
   {s:"MON ESPACE",items:[{id:"equipements",l:"Équipements",i:"🏭"},{id:"branding",l:"Branding",i:"🎨"}]}
 ];
 function Layout({user,onLogout}){const[page,sP]=useState("crm");const[sb,sSb]=useState(true);const all=NAV.flatMap(s=>s.items);const nav=all.find(n=>n.id===page);const PG={crm:CRMDash,prospects:Prospects,pipeline:Pipeline,activites:Activites,equipements:Equipements,users:Users,taux:BaremesFinancement,branding:TenantBranding,supervision:Supervision};const Pg=PG[page]||CRMDash;
-/* ── Sidebar styles aligned with front-end (240px, same spacing/fonts) ── */
-return<div style={{height:"100vh",display:"flex",fontFamily:"'Inter','DM Sans',-apple-system,sans-serif",color:C.text,background:C.bg,overflow:"hidden"}}>
-{/* SIDEBAR — fixed height, sticky scroll */}
-<div style={{width:sb?240:64,flexShrink:0,background:C.navy,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 4px 12px rgba(15,43,70,0.25)",height:"100vh",position:"sticky",top:0,overflow:"hidden"}}>
-{/* Header — logo block */}
-<div style={{padding:sb?"20px 16px":"20px 12px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.1)",flexShrink:0}}>
-<div style={{width:36,height:36,borderRadius:8,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.navy,flexShrink:0}}>L</div>
-{sb&&<div><div style={{fontSize:14,fontWeight:700,color:"#fff"}}>Lihtea</div><div style={{fontSize:9,color:C.tealB,textTransform:"uppercase",letterSpacing:"0.08em"}}>CRM & Admin</div></div>}
-</div>
-{/* Nav items — scrollable */}
-<nav style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",overflowY:"auto",overflowX:"hidden"}}>
+/* ── V5 SHELL : topbar 60px navy + sidebar 240px claire + main beige warm ── */
+const initials = ((user?.email||"VG").slice(0,2)||"VG").toUpperCase();
+return<div style={{height:"100vh",display:"flex",flexDirection:"column",fontFamily:F.body,color:C.text,background:C.bg,overflow:"hidden"}}>
+<style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap'); body, input, button, select, textarea { font-family: ${F.body}; } ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: ${C.borderStrong}; border-radius: 4px; } ::-webkit-scrollbar-track { background: transparent; }`}</style>
+
+{/* TOPBAR v5 — 60px navy, breadcrumb + avatar */}
+<header style={{height:60,background:C.navy,display:"flex",alignItems:"center",padding:"0 24px",gap:16,flexShrink:0,borderBottom:"1px solid rgba(255,255,255,0.06)",zIndex:100}}>
+  <div style={{display:"flex",alignItems:"center",gap:10}}>
+    <div style={{width:30,height:30,background:C.tealB,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>L</div>
+    <span style={{fontSize:15,fontWeight:700,color:"#fff",letterSpacing:"-0.3px"}}>Lihtea</span>
+  </div>
+  <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)",margin:"0 4px"}}/>
+  <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{nav?.l||"Admin"}</span>
+  <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
+    <span style={{background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.75)",fontSize:11,padding:"4px 10px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)"}}>✦ Admin CRM</span>
+    <div style={{width:32,height:32,borderRadius:"50%",background:C.tealB,color:"#fff",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center"}} title={user?.email||""}>{initials}</div>
+  </div>
+</header>
+
+<div style={{flex:1,display:"flex",overflow:"hidden"}}>
+{/* SIDEBAR v5 — claire avec sections */}
+<aside style={{width:sb?240:64,flexShrink:0,background:C.surface,display:"flex",flexDirection:"column",transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)",zIndex:10,borderRight:"1px solid "+C.border,height:"100%",overflow:"hidden"}}>
+{/* Nav items — sections groupées style v5 (clair, teal-light en actif) */}
+<nav style={{flex:1,padding:"6px 10px",display:"flex",flexDirection:"column",overflowY:"auto",overflowX:"hidden",gap:2}}>
 {NAV.map(section=><div key={section.s}>
-{sb&&<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.25)",padding:"12px 16px 4px",letterSpacing:"0.1em",textTransform:"uppercase"}}>{section.s}</div>}
-{section.items.map(item=>{const isActive=page===item.id;return<button key={item.id} onClick={()=>sP(item.id)} style={{
-display:"flex",alignItems:"center",gap:12,
-padding:sb?"14px 16px":"14px 12px",
+{sb&&<div style={{fontSize:10,fontWeight:600,color:C.text3,padding:"14px 8px 6px",letterSpacing:"0.08em",textTransform:"uppercase"}}>{section.s}</div>}
+{section.items.map(item=>{const isActive=page===item.id;return<button key={item.id} onClick={()=>sP(item.id)} title={!sb?item.l:""} style={{
+display:"flex",alignItems:"center",gap:10,
+padding:sb?"8px 10px":"10px 8px",
 justifyContent:sb?"flex-start":"center",
-borderRadius:0,border:"none",borderLeft:isActive?"4px solid #2dd4bf":"4px solid transparent",
+borderRadius:R.sm,border:"none",
 cursor:"pointer",width:"100%",
-background:isActive?"linear-gradient(90deg, rgba(13,148,136,0.35) 0%, rgba(13,148,136,0.12) 100%)":"transparent",
-color:isActive?"#ffffff":"rgba(255,255,255,0.5)",
-fontSize:13,fontWeight:isActive?700:500,fontFamily:"inherit",
-transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",whiteSpace:"nowrap",
-boxShadow:isActive?"inset 0 0 20px rgba(13,148,136,0.1)":"none"
-}}>
-<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",filter:isActive?"drop-shadow(0 0 4px rgba(45,212,191,0.4))":"none",color:isActive?"#2dd4bf":"inherit"}}>{item.i}</span>
+background:isActive?C.tealBg:"transparent",
+color:isActive?C.teal:C.text2,
+fontSize:13,fontWeight:isActive?500:400,fontFamily:F.body,
+transition:"all 0.18s ease",whiteSpace:"nowrap",
+marginBottom:2
+}}
+onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background=C.bg;e.currentTarget.style.color=C.text}}}
+onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background="transparent";e.currentTarget.style.color=C.text2}}}>
+<span style={{fontSize:16,flexShrink:0,minWidth:20,textAlign:"center",opacity:isActive?1:0.7}}>{item.i}</span>
 {sb&&<span>{item.l}</span>}
 </button>})}
 </div>)}
 </nav>
-{/* Footer — user info + controls, fixed at bottom */}
-<div style={{flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
-{sb&&user&&<div style={{padding:"10px 16px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
-<div style={{fontWeight:600,color:"rgba(255,255,255,0.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
-</div>}
-<div style={{display:"flex",gap:6,padding:sb?"4px 12px 12px":"8px 12px 12px"}}>
-<button onClick={()=>sSb(p=>!p)} title={sb?"Réduire":"Agrandir"} style={{flex:1,padding:8,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{sb?"\u25C1":"\u25B7"}</button>
-<button onClick={onLogout} title="Déconnexion" style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(220,38,38,0.3)",background:"rgba(220,38,38,0.1)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
+{/* Footer v5 — user + controls clair */}
+<div className="sidebar-footer" style={{flexShrink:0,borderTop:"1px solid "+C.border,padding:sb?"8px 10px 10px":"8px 6px 10px",display:"flex",flexDirection:"column",gap:6}}>
+{sb&&user&&<div style={{padding:"6px 10px",fontSize:11,color:C.text3,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={user.email}>{user.email}</div>}
+<div style={{display:"flex",gap:6}}>
+<button onClick={()=>sSb(p=>!p)} title={sb?"R\u00e9duire":"D\u00e9plier"} style={{flex:1,padding:"8px 4px",borderRadius:R.sm,border:"1px solid "+C.border,background:C.bg,color:C.text2,cursor:"pointer",fontSize:13,fontFamily:F.body,transition:"all .15s"}}>{sb?"\u25C1":"\u25B7"}</button>
+<button onClick={onLogout} title="D\u00e9connexion" style={{padding:"8px 10px",borderRadius:R.sm,border:"1px solid "+C.redBg,background:C.redBg,color:C.red,cursor:"pointer",fontSize:12,fontFamily:F.body,fontWeight:600,transition:"all .15s"}}>{sb?"D\u00e9connexion":"\u23FB"}</button>
 </div>
 </div>
+</aside>
+{/* MAIN CONTENT v5 — fond beige warm */}
+<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:C.bg}}>
+<div style={{flex:1,overflow:"auto",padding:"24px 28px"}}>
+  {/* Page-header v5 */}
+  <div style={{marginBottom:24,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:20}}>{nav?.i}</span>
+      <h1 style={{fontSize:22,fontWeight:700,color:C.navy,letterSpacing:"-0.4px",margin:0,fontFamily:F.body}}>{nav?.l}</h1>
+    </div>
+    <div style={{display:"flex",gap:8}}>
+      <Badge color={C.green}>Connect\u00e9</Badge>
+      <Badge color={C.navy}>v2.0 CRM</Badge>
+    </div>
+  </div>
+  <Pg/>
 </div>
-{/* MAIN CONTENT */}
-<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-{/* Header bar — aligned with front-end header-sticky */}
-<div style={{padding:"0 28px",borderBottom:"1px solid "+C.border,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(16px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,height:52}}>
-<span style={{fontSize:17,fontWeight:800,color:C.navy}}>{nav?.i} {nav?.l}</span>
-<div style={{display:"flex",gap:8}}>
-<Badge color={C.green}>Connect\u00e9</Badge>
-<Badge color={C.navy}>v2.0 CRM</Badge>
 </div>
-</div>
-<div style={{flex:1,overflow:"auto",padding:20}}><Pg/></div>
 </div>
 </div>}
 
