@@ -24,6 +24,54 @@ const SH = { sm:"0 1px 3px rgba(11,29,53,.08)", md:"0 4px 16px rgba(11,29,53,.10
 const R  = { sm:6, md:10, lg:16 };
 // Fonts v5 — Sora pour l'UI, DM Mono pour les chiffres
 const F  = { body:"'Sora','DM Sans',-apple-system,BlinkMacSystemFont,sans-serif", mono:"'DM Mono','JetBrains Mono','SF Mono',monospace" };
+
+// ── Icônes SVG v5 réutilisables (remplace les emojis old school) ──
+const SvgI = (size, paths) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle"}}>{paths}</svg>;
+const Ico = {
+  // Actions
+  edit:    s=>SvgI(s||14, <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>),
+  trash:   s=>SvgI(s||14, <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>),
+  eye:     s=>SvgI(s||14, <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>),
+  close:   s=>SvgI(s||14, <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>),
+  plus:    s=>SvgI(s||14, <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>),
+  check:   s=>SvgI(s||14, <polyline points="20 6 9 17 4 12"/>),
+  refresh: s=>SvgI(s||14, <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>),
+  search:  s=>SvgI(s||14, <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>),
+  arrow_r: s=>SvgI(s||14, <polyline points="9 18 15 12 9 6"/>),
+  arrow_l: s=>SvgI(s||14, <polyline points="15 18 9 12 15 6"/>),
+  alert:   s=>SvgI(s||14, <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>),
+  // Communication
+  phone:   s=>SvgI(s||14, <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.49 12 19.79 19.79 0 0 1 1.42 3.35 2 2 0 0 1 3.4 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>),
+  mail:    s=>SvgI(s||14, <><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></>),
+  doc:     s=>SvgI(s||14, <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>),
+  // Données / business
+  chart:   s=>SvgI(s||14, <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>),
+  trend:   s=>SvgI(s||14, <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>),
+  euro:    s=>SvgI(s||14, <><path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/></>),
+  flame:   s=>SvgI(s||14, <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>),
+  trophy:  s=>SvgI(s||14, <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></>),
+  building:s=>SvgI(s||14, <><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M19 21V11a2 2 0 0 0-2-2h-2"/><line x1="9" y1="7" x2="11" y2="7"/><line x1="9" y1="11" x2="11" y2="11"/><line x1="9" y1="15" x2="11" y2="15"/></>),
+  factory: s=>SvgI(s||14, <><path d="M2 22h20"/><path d="M3 22V11l7-5 7 5v11"/><path d="M9 22v-7h2v7"/><path d="M13 22v-4h2v4"/></>),
+  landmark:s=>SvgI(s||14, <><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></>),
+  // People
+  user:    s=>SvgI(s||14, <><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></>),
+  users:   s=>SvgI(s||14, <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>),
+  // Status
+  star:    s=>SvgI(s||14, <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>),
+  zap:     s=>SvgI(s||14, <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>),
+  bell:    s=>SvgI(s||14, <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>),
+  scale:   s=>SvgI(s||14, <><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></>),
+  pin:     s=>SvgI(s||14, <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></>),
+  calendar:s=>SvgI(s||14, <><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>),
+  folder:  s=>SvgI(s||14, <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>),
+  shield:  s=>SvgI(s||14, <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>),
+  clipboard:s=>SvgI(s||14, <><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></>),
+  // Spécifiques
+  power:   s=>SvgI(s||14, <><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></>),
+  link:    s=>SvgI(s||14, <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>),
+  rocket:  s=>SvgI(s||14, <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2zM9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>),
+  sleep:   s=>SvgI(s||14, <><path d="M2 4h6v2L4 18h4v2H2v-2l4-12H2z"/><path d="M14 8h8v2l-6 10h6v2h-8v-2l6-10h-6z"/></>),
+};
 const SC = {nouveau:C.blue,qualifie:C.teal,en_discussion:C.orange,proposition:C.purple,negociation:C.gold,gagne:C.green,perdu:C.red,inactif:C.text3};
 const PC = {brouillon:C.text3,envoyee:C.blue,en_cours:C.orange,financee:C.green,abandonnee:C.red};
 const PL = {brouillon:"Brouillon",envoyee:"Envoyée",en_cours:"En cours",financee:"Financée",abandonnee:"Abandonnée"};
@@ -48,11 +96,11 @@ const au = {
 function Badge({children,color=C.teal}){return<span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:color+"15",color,textTransform:"uppercase"}}>{children}</span>}
 function Btn({children,onClick,color=C.navy,variant="solid",small,disabled,style:sx}){const s=variant==="solid";return<button onClick={onClick} disabled={disabled} style={{padding:small?"5px 10px":"8px 16px",borderRadius:8,border:s?"none":"1px solid "+color+"40",cursor:disabled?"not-allowed":"pointer",background:s?color:"transparent",color:s?"#fff":color,fontSize:small?11:12,fontWeight:600,fontFamily:"inherit",opacity:disabled?.5:1,...sx}}>{children}</button>}
 function Input({label,value,onChange,type="text",placeholder,rows,options,disabled}){const b={padding:"8px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:13,fontFamily:"inherit",background:disabled?C.bg:C.surface,color:C.text,outline:"none",width:"100%",boxSizing:"border-box"};return<div style={{marginBottom:10}}>{label&&<div style={{fontSize:11,fontWeight:600,color:C.text3,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</div>}{options?<select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={b}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:rows?<textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} placeholder={placeholder} disabled={disabled} style={{...b,resize:"vertical"}}/>:<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} disabled={disabled} style={b}/>}</div>}
-function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>✕</button></div>{children}</div></div>}
+function Modal({open,onClose,title,children,wide}){if(!open)return null;return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.5)",backdropFilter:"blur(4px)"}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,padding:24,width:wide?720:480,maxWidth:"94vw",maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(15,43,70,0.3)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.text3}}>{Ico.close()}</button></div>{children}</div></div>}
 function Toast({msg}){if(!msg)return null;return<div style={{position:"fixed",top:16,right:16,zIndex:200,padding:"10px 20px",borderRadius:10,background:C.green,color:"#fff",fontSize:13,fontWeight:600}}>{msg}</div>}
-function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:22}}>{icon}</span><div><div style={{fontSize:22,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{value??"—"}</div><div style={{fontSize:10,color:C.text3,textTransform:"uppercase"}}>{label}</div></div></div>}
-function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>✏️</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>🗑</Btn>}</td>}</tr>)}</tbody></table></div>}
-function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon="⚠️"}){
+function Stat({icon,value,label,color=C.navy}){return<div style={{padding:16,borderRadius:R.md,background:C.surface,border:"1px solid "+C.border,boxShadow:SH.sm,display:"flex",alignItems:"center",gap:12}}><span style={{width:36,height:36,borderRadius:R.sm,background:color+"15",color,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{icon}</span><div style={{minWidth:0}}><div style={{fontSize:22,fontWeight:700,color:C.navy,fontFamily:F.mono,letterSpacing:"-0.5px"}}>{value??"—"}</div><div style={{fontSize:10,fontWeight:600,color:C.text3,textTransform:"uppercase",letterSpacing:"0.04em",marginTop:2}}>{label}</div></div></div>}
+function DT({columns,data,onEdit,onDelete,loading,empty}){if(loading)return<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>;if(!data?.length)return<div style={{padding:40,textAlign:"center",color:C.text3}}>{empty||"Aucune donnée"}</div>;return<div style={{overflowX:"auto",borderRadius:10,border:"1px solid "+C.border}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:C.navy}}>{columns.map((c,i)=><th key={i} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{c.label}</th>)}{(onEdit||onDelete)&&<th style={{padding:"10px 14px",color:"#fff",textAlign:"right",fontSize:11,width:90}}>Actions</th>}</tr></thead><tbody>{data.map((row,ri)=><tr key={row.id||ri} style={{borderBottom:"1px solid "+C.border,background:ri%2?C.bg:C.surface}}>{columns.map((c,ci)=><td key={ci} style={{padding:"8px 12px"}}>{c.render?c.render(row[c.key],row):(row[c.key]??"—")}</td>)}{(onEdit||onDelete)&&<td style={{padding:"8px 12px",textAlign:"right",whiteSpace:"nowrap"}}>{onEdit&&<Btn small variant="outline" color={C.blue} onClick={e=>{e.stopPropagation();onEdit(row)}} style={{marginRight:4}}>{Ico.edit()}</Btn>}{onDelete&&<Btn small variant="outline" color={C.red} onClick={e=>{e.stopPropagation();onDelete(row)}}>{Ico.trash()}</Btn>}</td>}</tr>)}</tbody></table></div>}
+function ConfirmModal({open,onClose,onConfirm,title,message,confirmLabel="Supprimer",confirmColor=C.red,icon=Ico.alert(28)}){
   if(!open)return null;
   return<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,43,70,0.6)",backdropFilter:"blur(6px)",animation:"cfmIn .2s ease"}} onClick={onClose}>
     <style>{`@keyframes cfmIn{from{opacity:0}to{opacity:1}}@keyframes cfmSlide{from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}`}</style>
@@ -113,7 +161,7 @@ function useCrud(t){
 }
 
 // === CRM Dashboard ===
-function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon="👥" value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon="🔥" value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon="✅" value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon="📊" value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon="💰" value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon="🏆" value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon="👔" value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon="📈" value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon="🎯" value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📦 Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>🏛️ {cs?.organismes||0} organismes</div><div>📋 {cs?.dispositifs||0} dispositifs</div><div>⚡ {cs?.fiches_cee||0} fiches CEE</div><div>🏭 {cs?.equipements||0} équipements</div><div>✅ {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
+function CRMDash(){const[s,sS]=useState({});const[cs,sCS]=useState({});const[feed,sF]=useState([]);const[users,sU]=useState([]);const[userFilter,sUF]=useState(null);useEffect(()=>{fj(ADM+"/user-stats").then(r=>sU(r?.data||[]));fj(ADM+"/crm-stats"+(userFilter?`?user_id=${userFilter}`:"")).then(r=>sS(r?.data||{}));fj(CAT+"/stats").then(sCS);fj(ADM+"/activity-feed?limit=8").then(r=>sF(r?.data||[]))},[userFilter]);return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div><h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:"0 0 4px"}}>Tableau de bord CRM</h2><p style={{fontSize:13,color:C.text3}}>Vue d'ensemble commerciale</p></div><select value={userFilter||""} onChange={e=>sUF(e.target.value||null)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,fontFamily:"inherit"}}><option value="">Tous les utilisateurs</option>{users.filter(u=>u.actif).map(u=><option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}</select></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}><Stat icon={Ico.users(20)} value={s.total_prospects} label="Prospects" color={C.navy}/><Stat icon={Ico.flame(20)} value={s.prospects_actifs} label="Actifs" color={C.orange}/><Stat icon={Ico.check(20)} value={s.prospects_gagnes} label="Gagnés" color={C.green}/><Stat icon={Ico.chart(20)} value={s.total_simulations} label="Simulations" color={C.teal}/><Stat icon={Ico.euro(20)} value={s.pipeline_montant?Math.round(Number(s.pipeline_montant)/1000)+"k€":"0€"} label="Pipeline" color={C.gold}/><Stat icon={Ico.trophy(20)} value={s.aides_totales_financees?Math.round(Number(s.aides_totales_financees)/1000)+"k€":"0€"} label="Financées" color={C.green}/><Stat icon={Ico.user(20)} value={s.loyers_total?Math.round(Number(s.loyers_total)/1000)+"k€":"0€"} label="Loyers total" color={C.blue}/><Stat icon={Ico.trend(20)} value={s.gains_total?Math.round(Number(s.gains_total)/1000)+"k€":"0€"} label="Gains total" color={C.purple}/><Stat icon={Ico.star(20)} value={s.roi_moyen?Number(s.roi_moyen).toFixed(1)+"%":"0%"} label="ROI moyen" color={C.teal}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Pipeline</div>{[["brouillon",s.sim_brouillon],["envoyee",s.sim_envoyees],["en_cours",s.sim_en_cours],["financee",s.sim_financees]].map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:8,height:8,borderRadius:4,background:PC[k]}}/><span style={{fontSize:12,color:C.text2,flex:1}}>{PL[k]}</span><span style={{fontSize:14,fontWeight:700,color:PC[k]}}>{v||0}</span></div>)}</div><div style={{padding:16,borderRadius:12,background:C.surface,border:"1px solid "+C.border}}><div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Activités récentes</div>{feed.length===0?<div style={{fontSize:12,color:C.text3}}>Aucune</div>:feed.slice(0,5).map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,fontSize:12}}><span>{({appel:"📞",email:"✉️",rdv:"🤝",visite:"🏢",relance:"🔄",proposition:"📄",signature:"✍️",note:"📝",tache:"✅"})[a.type]||"📌"}</span><div><div style={{fontWeight:600}}>{a.titre}</div><div style={{color:C.text3}}>{fa(a.created_at)}</div></div></div>)}</div></div><div style={{padding:16,borderRadius:12,background:"linear-gradient(135deg,"+C.navy+","+C.navyL+")",color:"#fff"}}><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>{Ico.folder()} Base référentielle</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,fontSize:12,opacity:.85}}><div>{Ico.landmark()} {cs?.organismes||0} organismes</div><div>{Ico.clipboard()} {cs?.dispositifs||0} dispositifs</div><div>{Ico.zap()} {cs?.fiches_cee||0} fiches CEE</div><div>{Ico.factory()} {cs?.equipements||0} équipements</div><div>{Ico.check()} {cs?.catalogues||0} éligibilités</div><div>🔗 6 connecteurs API</div></div></div></div>}
 
 // === Prospects ===
 function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[q,sQ]=useState("");const[sl,sSL]=useState(false);const[sims,sSims]=useState([]);const[users,sUsers]=useState([]);const[uf,sUF]=useState("");const[detail,sDetail]=useState(null);const[delTarget,sDelTarget]=useState(null);
@@ -137,11 +185,11 @@ function Prospects(){const{data,loading,create,update,remove}=useCrud("prospects
       </div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
-      <Stat icon="👥" value={fd2.length} label="Prospects" color={C.navy}/>
-      <Stat icon="🆕" value={stN} label="Nouveaux" color={C.blue}/>
-      <Stat icon="📄" value={stP} label="En proposition" color={C.purple}/>
-      <Stat icon="🏆" value={stG} label="Gagnés" color={C.green}/>
-      <Stat icon="💰" value={totInv?Math.round(totInv/1000)+"k€":"0€"} label="Volume offres" color={C.gold}/>
+      <Stat icon={Ico.users(20)} value={fd2.length} label="Prospects" color={C.navy}/>
+      <Stat icon={Ico.plus(20)} value={stN} label="Nouveaux" color={C.blue}/>
+      <Stat icon={Ico.doc(20)} value={stP} label="En proposition" color={C.purple}/>
+      <Stat icon={Ico.trophy(20)} value={stG} label="Gagnés" color={C.green}/>
+      <Stat icon={Ico.euro(20)} value={totInv?Math.round(totInv/1000)+"k€":"0€"} label="Volume offres" color={C.gold}/>
     </div>
   <DT loading={loading} data={fd2} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDelTarget(r)} columns={[
     {key:"raison_sociale",label:"Entreprise",render:(v,r)=><div><span style={{fontWeight:700}}>{v}</span>{r.ville&&<span style={{fontSize:11,color:C.text3,marginLeft:6}}>{r.ville}</span>}</div>},
@@ -323,7 +371,7 @@ function Pipeline(){const[p,sP]=useState(null);const[l,sL]=useState(true);const[
           {["brouillon","envoyee","en_cours","financee","abandonnee"].map(st=><Btn key={st} small color={PC[st]||C.text3} variant={detail.statut===st?"solid":"outline"} onClick={()=>{updateStatus(detail.id,st);sD({...detail,statut:st})}}>{PL[st]}</Btn>)}
         </div>
         <div style={{borderTop:"1px solid "+C.border,paddingTop:12,display:"flex",justifyContent:"flex-end"}}>
-          <Btn small color={C.red} variant="outline" onClick={()=>{sDelSim(detail);sD(null)}}>🗑 Supprimer la simulation</Btn>
+          <Btn small color={C.red} variant="outline" onClick={()=>{sDelSim(detail);sD(null)}}>{Ico.trash()} Supprimer la simulation</Btn>
         </div>
       </div>}
     </Modal>
@@ -368,10 +416,10 @@ function Activites(){
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:16}}>
-      <Stat icon="🔥" value={todayActions} label="Actions aujourd'hui" color={C.orange}/>
-      <Stat icon="📄" value={weekProps} label="Propositions (7j)" color={C.purple}/>
-      <Stat icon="📊" value={monthTotal} label="Total ce mois" color={C.navy}/>
-      <Stat icon="👥" value={[...new Set(data.filter(d=>d.created_at>=monthStart).map(d=>d.prospect_id).filter(Boolean))].length} label="Prospects touchés" color={C.teal}/>
+      <Stat icon={Ico.flame(20)} value={todayActions} label="Actions aujourd'hui" color={C.orange}/>
+      <Stat icon={Ico.doc(20)} value={weekProps} label="Propositions (7j)" color={C.purple}/>
+      <Stat icon={Ico.chart(20)} value={monthTotal} label="Total ce mois" color={C.navy}/>
+      <Stat icon={Ico.users(20)} value={[...new Set(data.filter(d=>d.created_at>=monthStart).map(d=>d.prospect_id).filter(Boolean))].length} label="Prospects touchés" color={C.teal}/>
     </div>
 
     {/* Category tabs */}
@@ -430,7 +478,7 @@ function Activites(){
     </Modal></div>}
 
 // === Admin pages ===
-function Organismes(){const{data,loading,create,update,remove}=useCrud("organismes");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Organismes</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",sigle:"",type:"national",pays:"FR",couleur:"#0d9488",actif:true});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"sigle",label:"Sigle",render:(v,r)=><span style={{fontWeight:700,color:r.couleur}}>{v}</span>},{key:"nom",label:"Nom"},{key:"type",label:"Type",render:v=><Badge color={{national:C.teal,europeen:C.purple,regional:"#7e22ce",fiscal:C.gold}[v]}>{v}</Badge>},{key:"actif",label:"",render:v=>v?"✅":"❌"}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouvel organisme":"Modifier"}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}><Input label="Sigle*" value={f.sigle||""} onChange={v=>F("sigle",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Type" value={f.type||"national"} onChange={v=>F("type",v)} options={[{value:"national",label:"National"},{value:"europeen",label:"Européen"},{value:"regional",label:"Régional"},{value:"fiscal",label:"Fiscal"}]}/><Input label="Couleur" value={f.couleur||""} onChange={v=>F("couleur",v)} type="color"/></div><Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={2}/><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver cet organisme ?" message={del?`Désactiver "${del.sigle} — ${del.nom}" ?`:""} icon="🏛️" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
+function Organismes(){const{data,loading,create,update,remove}=useCrud("organismes");const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Organismes</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",sigle:"",type:"national",pays:"FR",couleur:"#0d9488",actif:true});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"sigle",label:"Sigle",render:(v,r)=><span style={{fontWeight:700,color:r.couleur}}>{v}</span>},{key:"nom",label:"Nom"},{key:"type",label:"Type",render:v=><Badge color={{national:C.teal,europeen:C.purple,regional:"#7e22ce",fiscal:C.gold}[v]}>{v}</Badge>},{key:"actif",label:"",render:v=>v?"✅":"✕"}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouvel organisme":"Modifier"}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}><Input label="Sigle*" value={f.sigle||""} onChange={v=>F("sigle",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Type" value={f.type||"national"} onChange={v=>F("type",v)} options={[{value:"national",label:"National"},{value:"europeen",label:"Européen"},{value:"regional",label:"Régional"},{value:"fiscal",label:"Fiscal"}]}/><Input label="Couleur" value={f.couleur||""} onChange={v=>F("couleur",v)} type="color"/></div><Input label="Description" value={f.description||""} onChange={v=>F("description",v)} rows={2}/><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver cet organisme ?" message={del?`Désactiver "${del.sigle} — ${del.nom}" ?`:""} icon="🏛️" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
 
 function Dispositifs(){const{data,loading,create,update,remove}=useCrud("dispositifs");const[orgs,sO]=useState([]);const[m,sM]=useState(null);const[t,sT]=useState("");const[f,sF]=useState({});const[del,sDel]=useState(null);const F=(k,v)=>sF(p=>({...p,[k]:v}));const fl=x=>{sT(x);setTimeout(()=>sT(""),3000)};useEffect(()=>{fj(ADM+"/organismes").then(r=>sO(r?.data||[]))},[]);return<div><Toast msg={t}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Dispositifs</h2><p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>{data.length}</p></div><Btn onClick={()=>{sF({nom:"",code:"",type_aide:"subvention",taux_min:0,taux_max:50,statut:"actif",organisme_id:orgs[0]?.id});sM("new")}} color={C.teal}>+ Ajouter</Btn></div><DT loading={loading} data={data} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDel(r)} columns={[{key:"code",label:"Code",render:v=><span style={{fontFamily:"monospace",fontSize:11,fontWeight:600}}>{v}</span>},{key:"nom",label:"Nom"},{key:"organisme_id",label:"Org.",render:v=><Badge color={C.navy}>{orgs.find(o=>o.id===v)?.sigle||"?"}</Badge>},{key:"type_aide",label:"Type",render:v=><Badge color={C.teal}>{v?.replace("_"," ")}</Badge>},{key:"taux_max",label:"Taux",render:(v,r)=>v?r.taux_min+"-"+v+"%":"—"},{key:"statut",label:"",render:v=><Badge color={v==="actif"?C.green:C.red}>{v}</Badge>}]}/><Modal open={!!m} onClose={()=>sM(null)} title={m==="new"?"Nouveau":"Modifier"} wide><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}><Input label="Code*" value={f.code||""} onChange={v=>F("code",v)}/><Input label="Nom*" value={f.nom||""} onChange={v=>F("nom",v)}/><Input label="Organisme" value={f.organisme_id||""} onChange={v=>F("organisme_id",v)} options={orgs.map(o=>({value:o.id,label:o.sigle}))}/><Input label="Type" value={f.type_aide||"subvention"} onChange={v=>F("type_aide",v)} options={["subvention","pret","credit_impot","prime","garantie","reduction_taux"].map(v=>({value:v,label:v.replace("_"," ")}))}/><Input label="Min%" value={f.taux_min??0} onChange={v=>F("taux_min",parseFloat(v)||0)} type="number"/><Input label="Max%" value={f.taux_max??0} onChange={v=>F("taux_max",parseFloat(v)||0)} type="number"/></div><div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}><Btn variant="outline" onClick={()=>sM(null)}>Annuler</Btn><Btn color={C.teal} onClick={async()=>{if(m==="new"?await create(f):await update(f.id,f)){fl("✓");sM(null)}}}>{m==="new"?"Créer":"Sauvegarder"}</Btn></div></Modal><ConfirmModal open={!!del} onClose={()=>sDel(null)} title="Désactiver ce dispositif ?" message={del?`Désactiver "${del.code} — ${del.nom}" ?`:""} icon="📋" confirmLabel="Désactiver" confirmColor={C.orange} onConfirm={async()=>{await remove(del.id);fl("✓");sDel(null)}}/></div>}
 
@@ -466,15 +514,15 @@ function Connecteurs(){
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:20}}>
-      <Stat icon="🔗" value={connectedOrgs.length} label="Connectés" color={C.green}/>
-      <Stat icon="📝" value={manualOrgs.length} label="Manuels" color={C.text3}/>
-      <Stat icon="🏛️" value={orgs.length} label="Total organismes" color={C.navy}/>
-      <Stat icon="⚡" value={orgs.filter(o=>status[o.id]?.type==="api").length} label="APIs directes" color={C.teal}/>
+      <Stat icon={Ico.link(20)} value={connectedOrgs.length} label="Connectés" color={C.green}/>
+      <Stat icon={Ico.edit(20)} value={manualOrgs.length} label="Manuels" color={C.text3}/>
+      <Stat icon={Ico.landmark(20)} value={orgs.length} label="Total organismes" color={C.navy}/>
+      <Stat icon={Ico.zap(20)} value={orgs.filter(o=>status[o.id]?.type==="api").length} label="APIs directes" color={C.teal}/>
     </div>
 
     {loading?<div style={{padding:40,textAlign:"center",color:C.text3}}>Chargement...</div>:<>
     {/* Connected */}
-    <div style={{fontSize:14,fontWeight:700,color:C.navy,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🟢 Organismes connectés ({connectedOrgs.length})</div>
+    <div style={{fontSize:14,fontWeight:700,color:C.navy,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{Ico.check()} Organismes connectés ({connectedOrgs.length})</div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,marginBottom:24}}>
       {connectedOrgs.map(o=>{const s=status[o.id]||{};return<div key={o.id} style={{padding:14,borderRadius:12,border:"1px solid "+C.border,background:C.surface,display:"flex",alignItems:"center",gap:12}}>
         <div style={{width:38,height:38,borderRadius:10,background:(o.couleur||C.teal)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:o.couleur||C.teal,flexShrink:0}}>{o.sigle?.[0]||"?"}</div>
@@ -577,10 +625,10 @@ function Users(){
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:10,marginBottom:16}}>
-      <Stat icon="👤" value={users.length} label="Total" color={C.navy}/>
-      <Stat icon="✅" value={users.filter(u=>u.actif).length} label="Actifs" color={C.green}/>
-      <Stat icon="📊" value={users.reduce((a,u)=>a+u.total_simulations,0)} label="Simulations" color={C.teal}/>
-      <Stat icon="💰" value={users.reduce((a,u)=>a+u.montant_aides,0)?Math.round(users.reduce((a,u)=>a+u.montant_aides,0)/1000)+"k€":"0€"} label="Aides total" color={C.gold}/>
+      <Stat icon={Ico.user(20)} value={users.length} label="Total" color={C.navy}/>
+      <Stat icon={Ico.check(20)} value={users.filter(u=>u.actif).length} label="Actifs" color={C.green}/>
+      <Stat icon={Ico.chart(20)} value={users.reduce((a,u)=>a+u.total_simulations,0)} label="Simulations" color={C.teal}/>
+      <Stat icon={Ico.euro(20)} value={users.reduce((a,u)=>a+u.montant_aides,0)?Math.round(users.reduce((a,u)=>a+u.montant_aides,0)/1000)+"k€":"0€"} label="Aides total" color={C.gold}/>
     </div>
 
     <DT loading={loading} data={users} onEdit={r=>{sF({...r});sM("edit")}} onDelete={r=>sDelUser(r)} columns={[
@@ -605,7 +653,7 @@ function Users(){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}>
         <div style={{display:"flex",gap:6}}>
           {m==="edit"&&<Btn small color={C.orange} variant="outline" onClick={()=>{sPW(f.id);sNPw("")}}>🔑 Reset MDP</Btn>}
-          {m==="edit"&&!f.email_confirmed&&<Btn small color={C.blue} variant="outline" onClick={()=>confirmEmail(f)}>✉️ Confirmer email</Btn>}
+          {m==="edit"&&!f.email_confirmed&&<Btn small color={C.blue} variant="outline" onClick={()=>confirmEmail(f)}>{Ico.mail()} Confirmer email</Btn>}
           {m==="edit"&&<Btn small color={f.actif?C.red:C.green} variant="outline" onClick={()=>{toggleUser(f);sM(null)}}>{f.actif?"🚫 Désactiver":"✅ Réactiver"}</Btn>}
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -791,7 +839,7 @@ function BaremesFinancement() {
             <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Grille tarifaire — conditions en vigueur</span>
             <div style={{fontSize:11,color:C.text3,marginTop:2}}>Taux annuel nominal · Coefficient mensuel (début de période) · Loyer pour 1 000 € financés</div>
           </div>
-          <div style={{padding:"4px 12px",borderRadius:20,background:C.teal+"15",border:"1px solid "+C.teal+"30",fontSize:11,fontWeight:700,color:C.teal}}>👁 Lecture seule</div>
+          <div style={{padding:"4px 12px",borderRadius:20,background:C.teal+"15",border:"1px solid "+C.teal+"30",fontSize:11,fontWeight:700,color:C.teal}}>{Ico.eye()} Lecture seule</div>
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -860,18 +908,18 @@ function BaremesFinancement() {
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           {viewMode ? (
-            <Btn variant="outline" color={C.blue} onClick={()=>setViewMode(false)}>✏️ Modifier le barème</Btn>
+            <Btn variant="outline" color={C.blue} onClick={()=>setViewMode(false)}>{Ico.edit()} Modifier le barème</Btn>
           ) : (
-            <Btn variant="outline" color={C.text2} onClick={()=>setViewMode(true)}>👁 Mode visualisation</Btn>
+            <Btn variant="outline" color={C.text2} onClick={()=>setViewMode(true)}>{Ico.eye()} Mode visualisation</Btn>
           )}
-          {!viewMode&&editGrid.status!=="active"&&<Btn variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(editGrid);}}>✅ Activer</Btn>}
+          {!viewMode&&editGrid.status!=="active"&&<Btn variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(editGrid);}}>{Ico.check()} Activer</Btn>}
           {!viewMode&&editGrid.status==="active"&&<Btn variant="outline" color={C.orange} onClick={()=>patchGrid(editGrid,{status:"archived"})}>Archiver</Btn>}
           {!viewMode&&<Btn color={C.teal} onClick={saveRules} disabled={saving||!dirty}>{saving?"Sauvegarde...":"💾 Sauvegarder"}</Btn>}
         </div>
       </div>
 
       {editGrid.status==="active"&&<div style={{padding:"10px 14px",borderRadius:8,background:C.green+"10",border:"1px solid "+C.green+"30",fontSize:12,color:C.green,marginBottom:16}}>
-        🟢 Barème <strong>actif</strong> — conditions appliquées en temps réel dans le simulateur.
+        ● Barème <strong>actif</strong> — conditions appliquées en temps réel dans le simulateur.
       </div>}
 
       {viewMode ? <ViewTable /> : (
@@ -889,7 +937,7 @@ function BaremesFinancement() {
                 <tr style={{background:C.navy}}>
                   <th style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"left",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",minWidth:220}}>Tranche de montant</th>
                   {durations.map(dur=><th key={dur} style={{padding:"10px 14px",color:"#fff",fontWeight:600,textAlign:"center",fontSize:11,minWidth:140}}>
-                    {dur} mois{durations.length>1&&<span onClick={()=>{setDurations(p=>p.filter(d=>d!==dur));setDirty(true);}} style={{marginLeft:6,cursor:"pointer",opacity:0.5,fontSize:10}}>✕</span>}
+                    {dur} mois{durations.length>1&&<span onClick={()=>{setDurations(p=>p.filter(d=>d!==dur));setDirty(true);}} style={{marginLeft:6,cursor:"pointer",opacity:0.5,fontSize:10}}>{Ico.close()}</span>}
                   </th>)}
                   <th style={{width:36}}></th>
                 </tr>
@@ -924,7 +972,7 @@ function BaremesFinancement() {
                     </td>;
                   })}
                   <td style={{...cellSt,textAlign:"center",borderRight:"none",padding:"0 8px"}}>
-                    {slabs.length>1&&<button onClick={()=>{setSlabs(p=>p.filter((_,i)=>i!==si));setDirty(true);}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>✕</button>}
+                    {slabs.length>1&&<button onClick={()=>{setSlabs(p=>p.filter((_,i)=>i!==si));setDirty(true);}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>{Ico.close()}</button>}
                   </td>
                 </tr>)}
               </tbody>
@@ -951,7 +999,7 @@ function BaremesFinancement() {
         <Input label="Date d'entrée en vigueur" value={activateDate} onChange={setActivateDate} type="date"/>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
           <Btn variant="outline" onClick={()=>setActivateModal(null)}>Annuler</Btn>
-          <Btn color={C.green} onClick={activateGrid}>✅ Activer ce barème</Btn>
+          <Btn color={C.green} onClick={activateGrid}>{Ico.check()} Activer ce barème</Btn>
         </div>
       </Modal>
     </div>;
@@ -965,7 +1013,7 @@ function BaremesFinancement() {
       <div>
         <h2 style={{fontSize:18,fontWeight:800,color:C.navy,margin:0}}>Barèmes de Financement</h2>
         <p style={{fontSize:13,color:C.text3,margin:"4px 0 0"}}>
-          Moteur de tarification · {grids.length} version{grids.length>1?"s":""} · {activeGrid?"🟢 Barème actif : "+activeGrid.name:"⚠️ Aucun barème actif — simulateur non fonctionnel"}
+          Moteur de tarification · {grids.length} version{grids.length>1?"s":""} · {activeGrid?"● Barème actif : "+activeGrid.name:"⚠️ Aucun barème actif — simulateur non fonctionnel"}
         </p>
       </div>
       <Btn color={C.teal} onClick={()=>{setNewGridForm({name:"",effective_date:new Date().toISOString().split("T")[0],notes:""});setNewGridModal(true);}}>+ Nouveau barème</Btn>
@@ -980,8 +1028,8 @@ function BaremesFinancement() {
         <div style={{fontSize:11,opacity:.7}}>En vigueur depuis le {fd(activeGrid.effective_date)}</div>
       </div>
       <div style={{display:"flex",gap:8}}>
-        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.85)"}} onClick={()=>openEditor(activeGrid,true)}>👁 Visualiser</Btn>
-        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"#fff"}} onClick={()=>openEditor(activeGrid,false)}>✏️ Modifier</Btn>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.85)"}} onClick={()=>openEditor(activeGrid,true)}>{Ico.eye()} Visualiser</Btn>
+        <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.3)",color:"#fff"}} onClick={()=>openEditor(activeGrid,false)}>{Ico.edit()} Modifier</Btn>
         <Btn small variant="outline" style={{borderColor:"rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)"}} onClick={()=>duplicateGrid(activeGrid)}>Dupliquer</Btn>
       </div>
     </div>}
@@ -997,11 +1045,11 @@ function BaremesFinancement() {
             <div style={{fontSize:11,color:C.text3}}>Créé {fd(g.created_at)}{g.effective_date?" · En vigueur : "+fd(g.effective_date):""}{g.notes?" · "+g.notes:""}</div>
           </div>
           <div style={{display:"flex",gap:6}}>
-            <Btn small variant="outline" color={C.text2} onClick={()=>openEditor(g,true)}>👁 Voir</Btn>
-            <Btn small variant="outline" color={C.blue} onClick={()=>openEditor(g,false)}>✏️ Éditer</Btn>
+            <Btn small variant="outline" color={C.text2} onClick={()=>openEditor(g,true)}>{Ico.eye()} Voir</Btn>
+            <Btn small variant="outline" color={C.blue} onClick={()=>openEditor(g,false)}>{Ico.edit()} Éditer</Btn>
             {g.status==="draft"&&<Btn small variant="outline" color={C.green} onClick={()=>{setActivateDate(new Date().toISOString().split("T")[0]);setActivateModal(g);}}>Activer</Btn>}
             <Btn small variant="outline" color={C.navy} onClick={()=>duplicateGrid(g)}>Dupliquer</Btn>
-            {g.status==="draft"&&<Btn small variant="outline" color={C.red} onClick={()=>setDeleteModal(g)}>🗑</Btn>}
+            {g.status==="draft"&&<Btn small variant="outline" color={C.red} onClick={()=>setDeleteModal(g)}>{Ico.trash()}</Btn>}
           </div>
         </div>)}
         {grids.length===0&&<div style={{padding:40,textAlign:"center",color:C.text3}}>
@@ -1031,7 +1079,7 @@ function BaremesFinancement() {
       <Input label="Date d'entrée en vigueur" value={activateDate} onChange={setActivateDate} type="date"/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
         <Btn variant="outline" onClick={()=>setActivateModal(null)}>Annuler</Btn>
-        <Btn color={C.green} onClick={activateGrid}>✅ Activer ce barème</Btn>
+        <Btn color={C.green} onClick={activateGrid}>{Ico.check()} Activer ce barème</Btn>
       </div>
     </Modal>
   </div>;
@@ -1221,7 +1269,7 @@ function Supervision(){
       .then(r=>r.json()).then(d=>{if(Array.isArray(d))setP(d);setL(false)}).catch(()=>setL(false));
   },[]);
   const byStatus={};prospects.forEach(p=>{const s=p.statut||"nouveau";byStatus[s]=(byStatus[s]||0)+1;});
-  const statuses=[["prospect","🔵"],["qualification","🟡"],["proposition","🟠"],["negociation","🔴"],["gagne","🟢"],["perdu","⚫"]];
+  const statuses=[["prospect","🔵"],["qualification","🟡"],["proposition","🟠"],["negociation","🔴"],["gagne","●"],["perdu","⚫"]];
   const Card=({title,value,sub,color})=><div style={{background:"#fff",borderRadius:10,padding:"16px 20px",border:"1px solid #e2e8f0",borderLeft:"4px solid "+color,flex:1,minWidth:140}}>
     <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{title}</div>
     <div style={{fontSize:26,fontWeight:800,color:"#0f2b46"}}>{value}</div>
